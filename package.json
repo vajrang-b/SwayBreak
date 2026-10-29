@@ -1,0 +1,9 @@
+{
+  "name": "swaybreak",
+  "version": "1.0.0",
+  "description": "Breakout-style game controlled with webcam body postures, jumps, and arm reaches.",
+  "type": "module",
+  "scripts": {
+    "test": "node --import ./tests/setup.js --test \"tests/**/*.test.js\""
+  }
+}

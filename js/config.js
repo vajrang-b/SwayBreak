@@ -52,6 +52,7 @@ export const CONFIG = {
   // Game Mechanics
   game: {
     countdownSeconds: 3,      // 3-second ready countdown on start & restart
+    levelTransitionSeconds: 5,
     roundDurationSeconds: 90,
     roundEndDisplaySeconds: 3,
     clutchSaveBonusPoints: 10,

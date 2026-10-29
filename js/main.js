@@ -1,6 +1,6 @@
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from "./constants.js?v=12";
 import * as audio from "./audio.js?v=22";
-import { Game } from "./game.js?v=21";
+import { Game } from "./game.js?v=22";
 import { PoseTracker } from "./pose.js?v=15";
 import { CONFIG } from "./config.js?v=16";
 import { createPostureRecorder } from "./autorecord.js?v=3";
@@ -248,6 +248,9 @@ const game = new Game({
     timeProgress.style.width = `${timePercent}%`;
     timeProgress.classList.toggle("low-time", seconds <= 20);
     timeTrack.setAttribute("aria-valuenow", String(seconds));
+  },
+  onLevelAdvance: (level) => {
+    roundElement.textContent = String(level);
   },
   onGameOver: (title, message, autoRestart = false) => {
     const scoreMessage = saveBestScore(game.score);

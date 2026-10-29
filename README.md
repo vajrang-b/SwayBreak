@@ -17,6 +17,9 @@ recording. Recordings are stored only in this browser on this device, not
 uploaded, and may be removed if site data is cleared. Microphone capture stops
 when posture control is disabled.
 
+Clearing all bricks advances to the next level after a five-second countdown.
+Your score, round timer, and video recording continue across successful levels.
+
 During game sounds, microphone audio in the recording is briefly ducked to
 reduce speaker echo, then restored. Headphones are still the most reliable way
 to prevent game audio from leaking into the microphone. The recording mic level

@@ -7,6 +7,7 @@ export class Game {
     audio,
     onScoreChange,
     onRoundTimeChange,
+    onLevelAdvance,
     onGameOver,
     onGameRestart,
     onClutchSave,
@@ -17,6 +18,7 @@ export class Game {
     this.audio = audio;
     this.onScoreChange = onScoreChange;
     this.onRoundTimeChange = onRoundTimeChange;
+    this.onLevelAdvance = onLevelAdvance;
     this.onGameOver = onGameOver;
     this.onGameRestart = onGameRestart;
     this.onClutchSave = onClutchSave;
@@ -67,6 +69,7 @@ export class Game {
     this.lastDisplayedRoundSecond = null;
     this.autoRestartTimer = 0;
     this.countdown = 0;
+    this.countdownLabel = "GET READY";
     this.waitingForPosture = true;
     this.countdownGoTimer = 0;
     this.countdownBeeped = {};
@@ -117,10 +120,11 @@ export class Game {
     }
   }
 
-  startCountdown(seconds = 3) {
+  startCountdown(seconds = 3, label = "GET READY") {
     this.waitingForPosture = false;
     this.ballReturn = null;
     this.countdown = seconds;
+    this.countdownLabel = label;
     this.countdownGoTimer = 0;
     this.countdownBeeped = {};
     this.ball.isPowerBall = false;
@@ -217,6 +221,22 @@ export class Game {
     this.onScoreChange?.(this.score);
     this.updateRoundTimeDisplay();
     this.onGameRestart?.();
+  }
+
+  advanceLevel() {
+    this.roundNumber += 1;
+    this.bricksCleared = 0;
+    this.speedMultiplier = 1;
+    this.ballReturn = null;
+    this.explosionEffect = null;
+    this.particles = [];
+    this.floatingTexts = [];
+    this.resetBricks();
+    this.startCountdown(
+      CONFIG.game?.levelTransitionSeconds ?? 5,
+      `LEVEL ${this.roundNumber} READY`,
+    );
+    this.onLevelAdvance?.(this.roundNumber);
   }
 
   triggerJump() {
@@ -618,7 +638,7 @@ export class Game {
 
     if (this.bricks.every(brick => !brick.visible)) {
       this.audio.playGameEndSound();
-      this.finish("You win!", `You cleared every brick with a score of ${this.score}.`);
+      this.advanceLevel();
     } else if (this.ball.y - this.ball.radius > this.height) {
       this.comboStreak = 0;
       this.ball.isPowerBall = false;
@@ -874,7 +894,7 @@ export class Game {
 
       this.ctx.font = "700 24px system-ui, sans-serif";
       this.ctx.fillStyle = "#a59aff";
-      this.ctx.fillText("GET READY", this.width / 2, this.height / 2 - 80);
+      this.ctx.fillText(this.countdownLabel, this.width / 2, this.height / 2 - 80);
 
       this.ctx.font = `900 ${Math.round(110 * scale)}px system-ui, sans-serif`;
       this.ctx.fillStyle = "#5ce1b8";
