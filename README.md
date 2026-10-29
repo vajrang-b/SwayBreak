@@ -24,7 +24,7 @@ can be set with `audio.setRecordingMicLevel(0)` for game audio only or
 `audio.setRecordingMicLevel(0.6)` for reduced microphone audio.
 
 Sound effects are stored in `sounds/`. When the ball drops, the game plays
-`sounds/explosion-form-roblox-real.mp3`, then animates it back to the paddle
+`sounds/miss-explosion.mp3`, then animates it back to the paddle
 with a return swoosh and catch sound. If the audio file cannot load, a
 synthesized blast is used instead. Smashes also play the supplied
 `sounds/fahhh_KcgAXfs.mp3` vocal cue along with the existing impact sound.

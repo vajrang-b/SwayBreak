@@ -1,5 +1,5 @@
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from "./constants.js?v=12";
-import * as audio from "./audio.js?v=21";
+import * as audio from "./audio.js?v=22";
 import { Game } from "./game.js?v=21";
 import { PoseTracker } from "./pose.js?v=15";
 import { CONFIG } from "./config.js?v=16";

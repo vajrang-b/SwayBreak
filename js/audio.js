@@ -134,7 +134,7 @@ export function ensureAudio(isGameOver = false) {
   }
 
   if (!explosionSoundLoadPromise) {
-    explosionSoundLoadPromise = fetch(new URL("../sounds/explosion-form-roblox-real.mp3", import.meta.url))
+    explosionSoundLoadPromise = fetch(new URL("../sounds/miss-explosion.mp3", import.meta.url))
       .then((response) => {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         return response.arrayBuffer();
