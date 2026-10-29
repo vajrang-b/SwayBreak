@@ -139,7 +139,7 @@ export function createPostureRecorder(options) {
             downloadBlob(eventLog, `posture-breaker-${stamp}.events.json`);
           }
         }
-        if (options.onFile) options.onFile(blob, session.events);
+        if (options.onFile) options.onFile(blob, session.events, filename);
         onEvent('STOP', Math.round((performance.now() - session.startTime) / 1000));
       };
 

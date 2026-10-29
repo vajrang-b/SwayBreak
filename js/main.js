@@ -4,6 +4,7 @@ import { Game } from "./game.js?v=15";
 import { PoseTracker } from "./pose.js?v=13";
 import { CONFIG } from "./config.js?v=15";
 import { createPostureRecorder } from "./autorecord.js?v=3";
+import { isAutoSaveEnabled, saveRecording, setAutoSaveEnabled } from "./recording-storage.js?v=1";
 
 // DOM Elements
 const canvas = document.querySelector("#game");
@@ -17,11 +18,36 @@ const postureButton = document.querySelector("#posture-button");
 const soundButton = document.querySelector("#sound-button");
 const postureStatus = document.querySelector("#posture-status");
 const recordingStatus = document.querySelector("#recording-status");
+const saveRecordingButton = document.querySelector("#save-recording-button");
+const saveEventsButton = document.querySelector("#save-events-button");
+const autoSaveToggle = document.querySelector("#auto-save-toggle");
+const autoSaveStatus = document.querySelector("#auto-save-status");
 const video = document.querySelector("#camera");
 const posePreview = document.querySelector("#pose-preview");
 
 let recorder = null;
 let recordingHasMicrophone = false;
+let pendingRecording = null;
+let pendingEventLog = null;
+let autoSaveEnabled = true;
+
+try {
+  autoSaveEnabled = isAutoSaveEnabled();
+  autoSaveToggle.checked = autoSaveEnabled;
+} catch (error) {
+  autoSaveStatus.textContent = `Auto-save preference unavailable: ${error.message}`;
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
 
 function startRecording(microphoneStream = null) {
   if (!recorder) return;
@@ -47,15 +73,46 @@ try {
     gameCanvas: canvas,
     webcamCanvas: posePreview,
     createAudioRecording: audio.createRecordingAudioStream,
+    autoDownload: false,
     onEvent: (type) => {
       if (type === "START") {
+        pendingRecording = null;
+        pendingEventLog = null;
+        saveRecordingButton.hidden = true;
+        saveEventsButton.hidden = true;
         recordingStatus.textContent = recordingHasMicrophone
-          ? "Recording portrait video with game, camera, skeleton, game sound and microphone; saved locally when the round ends."
-          : "Recording portrait video with game, camera, skeleton and game sound; microphone unavailable. Saved locally when the round ends.";
+          ? "Recording portrait video with game, camera, skeleton, game sound and microphone. Tap Save video when recording finishes."
+          : "Recording portrait video with game, camera, skeleton and game sound. Microphone unavailable. Tap Save video when recording finishes.";
       }
     },
-    onFile: () => {
-      recordingStatus.textContent = "Recording downloaded to your device.";
+    onFile: async (blob, events, filename) => {
+      pendingRecording = new File([blob], filename, { type: blob.type });
+      pendingEventLog = events.length > 0
+        ? new Blob(
+          [JSON.stringify({ recording: filename, events }, null, 2)],
+          { type: "application/json" },
+        )
+        : null;
+      saveRecordingButton.hidden = false;
+      saveEventsButton.hidden = !pendingEventLog;
+      recordingStatus.textContent = autoSaveEnabled
+        ? "Recording ready. Saving to this device’s recordings library…"
+        : "Recording ready. Auto-save is off; tap Save video to keep it.";
+      if (autoSaveEnabled) {
+        try {
+          await saveRecording({
+            id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            name: filename,
+            blob,
+            events,
+            createdAt: new Date().toISOString(),
+          });
+          recordingStatus.textContent = "Recording saved in My recordings. You can also download or share it now.";
+        } catch (error) {
+          console.error("Could not save recording locally:", error);
+          recordingStatus.textContent = `Could not auto-save recording: ${error.message}. Tap Save video to keep it.`;
+        }
+      }
     },
     onError: (error) => {
       console.error("Game recording failed:", error);
@@ -66,6 +123,51 @@ try {
   console.error("Could not initialize game recording:", error);
   recordingStatus.textContent = `Recording unavailable: ${error.message}`;
 }
+
+autoSaveToggle.addEventListener("change", () => {
+  try {
+    autoSaveEnabled = autoSaveToggle.checked;
+    setAutoSaveEnabled(autoSaveEnabled);
+    autoSaveStatus.textContent = autoSaveEnabled
+      ? "New recordings will be saved in My recordings on this device."
+      : "New recordings will not be kept in the local library.";
+  } catch (error) {
+    autoSaveToggle.checked = autoSaveEnabled;
+    autoSaveStatus.textContent = `Could not save auto-save preference: ${error.message}`;
+  }
+});
+
+saveRecordingButton.addEventListener("click", async () => {
+  if (!pendingRecording) return;
+  try {
+    if (typeof navigator.share === "function"
+      && typeof navigator.canShare === "function"
+      && navigator.canShare({ files: [pendingRecording] })) {
+      await navigator.share({
+        files: [pendingRecording],
+        title: pendingRecording.name,
+      });
+      recordingStatus.textContent = "Choose Save Video or another destination in the share menu.";
+    } else {
+      downloadBlob(pendingRecording, pendingRecording.name);
+      recordingStatus.textContent = "Save requested. Check your browser downloads.";
+    }
+  } catch (error) {
+    if (error.name === "AbortError") {
+      recordingStatus.textContent = "Save canceled. Tap Save video when you’re ready.";
+      return;
+    }
+    console.error("Could not save game recording:", error);
+    recordingStatus.textContent = `Could not save recording: ${error.message}`;
+  }
+});
+
+saveEventsButton.addEventListener("click", () => {
+  if (!pendingEventLog || !pendingRecording) return;
+  const filename = pendingRecording.name.replace(/\.(mp4|webm)$/i, ".events.json");
+  downloadBlob(pendingEventLog, filename);
+  recordingStatus.textContent = "Event markers saved. Check your browser downloads.";
+});
 
 // Initialize Game (mouse & keyboard controls disabled; posture-only)
 const game = new Game({

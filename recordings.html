@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>My recordings · Posture Breaker</title>
+    <link rel="stylesheet" href="css/styles.css?v=16">
+  </head>
+  <body>
+    <main>
+      <header class="recordings-header">
+        <div>
+          <h1>My recordings</h1>
+          <a href="index.html">Back to game</a>
+        </div>
+        <button id="download-all" type="button" disabled>Download all as ZIP</button>
+      </header>
+      <div class="recording-settings">
+        <label><input id="auto-save-toggle" type="checkbox"> Automatically save new recordings on this device</label>
+        <p>Recordings stay in this browser on this device. Clearing site data may delete them.</p>
+      </div>
+      <p id="recordings-status" role="status" aria-live="polite">Loading local recordings…</p>
+      <section id="recordings-list" class="recordings-list" aria-label="Saved recordings"></section>
+    </main>
+    <script type="module" src="js/recordings-page.js?v=1"></script>
+  </body>
+</html>

@@ -113,6 +113,22 @@ button {
   cursor: pointer;
 }
 
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  border-radius: 9px;
+  padding: 10px 15px;
+  background: #35415c;
+  color: #eef2ff;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.button-link:hover {
+  background: #465472;
+}
+
 button:hover {
   background: #a59aff;
 }
@@ -144,6 +160,100 @@ button:focus-visible {
   font-size: 0.85rem;
   line-height: 1.35;
   min-height: 1.35em;
+}
+
+.recording-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.recording-actions button[hidden] {
+  display: none;
+}
+
+.auto-save-setting,
+.recording-settings label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #eef2ff;
+  font-size: 0.9rem;
+}
+
+.auto-save-setting input,
+.recording-settings input {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: #8b7bff;
+}
+
+#auto-save-status,
+.recording-settings p {
+  margin: 0;
+  color: #aab5d0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.recordings-header {
+  align-items: center;
+}
+
+.recordings-header a {
+  color: #c8d0e8;
+}
+
+.recording-settings {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.recordings-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 16px;
+}
+
+.recording-card {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #35415c;
+  border-radius: 12px;
+  background: #171f31;
+}
+
+.recording-card h2 {
+  margin: 0 0 6px;
+  overflow-wrap: anywhere;
+  font-size: 1rem;
+}
+
+.recording-card p {
+  margin: 0 0 10px;
+  color: #aab5d0;
+  font-size: 0.85rem;
+}
+
+.recording-card video {
+  display: block;
+  width: 100%;
+  max-height: 60vh;
+  border-radius: 8px;
+  background: #080b12;
+}
+
+.recording-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.recording-card .secondary-button {
+  background: #35415c;
+  color: #eef2ff;
 }
 
 .help {

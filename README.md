@@ -6,10 +6,15 @@ Enable posture control to record a portrait video with the game at the top and
 the camera with its skeleton overlay at the bottom. Game sound and microphone
 audio are included; the browser asks for microphone permission separately.
 If microphone access is denied or unavailable, recording continues without it.
-Recording stops when the round ends or posture control is disabled, then
-downloads to your device as a WebM or MP4 file. The video is composed and saved
-locally in your browser; it is not uploaded. Microphone capture stops when
-posture control is disabled.
+Recording stops when the round ends or posture control is disabled. By default,
+the video and event markers are saved in the browser's local recordings library.
+Open **My recordings** to review them, download individual files, or export all
+recordings and event markers in one ZIP. On iPhone and iPad, use the share sheet
+to save the ZIP to Files. You can turn off automatic saving in the game or
+recordings page; the **Save video** button remains available for the latest
+recording. Recordings are stored only in this browser on this device, not
+uploaded, and may be removed if site data is cleared. Microphone capture stops
+when posture control is disabled.
 When clutch saves or SMASHes happen, a companion `.events.json` file lists
 their timestamps in seconds and milliseconds for editing.
 

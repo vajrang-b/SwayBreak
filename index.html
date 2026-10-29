@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Posture Breaker</title>
-    <link rel="stylesheet" href="css/styles.css?v=14">
+    <link rel="stylesheet" href="css/styles.css?v=16">
   </head>
   <body>
     <main>
@@ -21,9 +21,16 @@
         <div class="buttons-row">
           <button id="posture-button" type="button">Enable posture control</button>
           <button id="sound-button" type="button" aria-label="Mute sound" aria-pressed="true">Sound: On</button>
+          <a class="button-link" href="recordings.html">My recordings</a>
         </div>
+        <label class="auto-save-setting"><input id="auto-save-toggle" type="checkbox"> Automatically save recordings on this device</label>
+        <p id="auto-save-status" role="status">Saved recordings stay in this browser on this device.</p>
         <div id="posture-status" role="status">Posture control is off.</div>
         <div id="recording-status" role="status" aria-live="polite">Recording starts when posture control is enabled.</div>
+        <div class="recording-actions">
+          <button id="save-recording-button" type="button" hidden>Save video</button>
+          <button id="save-events-button" type="button" hidden>Save event markers</button>
+        </div>
       </div>
 
       <section class="game-wrap" aria-label="Brick breaker game">
@@ -45,6 +52,6 @@
     <video id="camera" playsinline muted hidden></video>
     <canvas class="camera" id="pose-preview" width="240" height="180" aria-label="Skeleton preview" hidden></canvas>
 
-    <script type="module" src="js/main.js?v=19"></script>
+    <script type="module" src="js/main.js?v=21"></script>
   </body>
 </html>
