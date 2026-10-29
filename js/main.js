@@ -1,15 +1,19 @@
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from "./constants.js?v=12";
 import * as audio from "./audio.js?v=15";
-import { Game } from "./game.js?v=16";
-import { PoseTracker } from "./pose.js?v=13";
-import { CONFIG } from "./config.js?v=15";
+import { Game } from "./game.js?v=19";
+import { PoseTracker } from "./pose.js?v=14";
+import { CONFIG } from "./config.js?v=16";
 import { createPostureRecorder } from "./autorecord.js?v=3";
 import { isAutoSaveEnabled, saveRecording, setAutoSaveEnabled } from "./recording-storage.js?v=1";
 
 // DOM Elements
 const canvas = document.querySelector("#game");
 const scoreElement = document.querySelector("#score");
+const roundElement = document.querySelector("#round");
+const bestScoreElement = document.querySelector("#best-score");
 const timeElement = document.querySelector("#time");
+const timeProgress = document.querySelector("#time-progress");
+const timeTrack = document.querySelector(".time-track");
 const livesElement = document.querySelector("#lives");
 const overlay = document.querySelector("#overlay");
 const overlayTitle = document.querySelector("#overlay-title");
@@ -24,6 +28,10 @@ const autoSaveToggle = document.querySelector("#auto-save-toggle");
 const autoSaveStatus = document.querySelector("#auto-save-status");
 const video = document.querySelector("#camera");
 const posePreview = document.querySelector("#pose-preview");
+const shareScoreButton = document.querySelector("#share-score-button");
+const shareScoreStatus = document.querySelector("#share-score-status");
+const challengeStatus = document.querySelector("#challenge-status");
+const cameraGuide = document.querySelector("#camera-guide");
 
 let recorder = null;
 let recordingHasMicrophone = false;
@@ -31,6 +39,46 @@ let pendingRecording = null;
 let pendingEventLog = null;
 let autoSaveEnabled = true;
 let recordingStopTimer = 0;
+const BEST_SCORE_KEY = "swaybreak-best-score";
+let bestScore = 0;
+let hasSavedBestScore = false;
+
+try {
+  const savedBestScore = localStorage.getItem(BEST_SCORE_KEY);
+  if (savedBestScore !== null) {
+    const parsedScore = Number(savedBestScore);
+    if (Number.isFinite(parsedScore) && parsedScore >= 0) {
+      bestScore = parsedScore;
+      hasSavedBestScore = true;
+    }
+  }
+} catch (error) {
+  console.warn("Could not read the saved best score:", error);
+}
+if (hasSavedBestScore) bestScoreElement.textContent = String(bestScore);
+const challengeScore = Number(new URLSearchParams(window.location.search).get("challenge"));
+if (Number.isSafeInteger(challengeScore) && challengeScore > 0) {
+  challengeStatus.textContent = `Challenge: beat ${challengeScore} in 90 seconds!`;
+  challengeStatus.hidden = false;
+}
+
+function saveBestScore(score) {
+  const previousBest = bestScore;
+  const isNewBest = !hasSavedBestScore || score > previousBest;
+  if (isNewBest) {
+    bestScore = score;
+    hasSavedBestScore = true;
+    try {
+      localStorage.setItem(BEST_SCORE_KEY, String(bestScore));
+    } catch (error) {
+      console.warn("Could not save the best score:", error);
+    }
+    bestScoreElement.textContent = String(bestScore);
+  }
+  if (isNewBest) return `New personal best: ${score}!`;
+  if (score === bestScore) return `You matched your best score of ${bestScore}.`;
+  return `You scored ${score}. Your best is ${bestScore}. ${bestScore - score} away.`;
+}
 
 try {
   autoSaveEnabled = isAutoSaveEnabled();
@@ -91,6 +139,7 @@ try {
       if (type === "START") {
         pendingRecording = null;
         pendingEventLog = null;
+        recordingStatus.hidden = false;
         saveRecordingButton.hidden = true;
         saveEventsButton.hidden = true;
         recordingStatus.textContent = recordingHasMicrophone
@@ -106,6 +155,7 @@ try {
           { type: "application/json" },
         )
         : null;
+      recordingStatus.hidden = false;
       saveRecordingButton.hidden = false;
       saveEventsButton.hidden = !pendingEventLog;
       recordingStatus.textContent = autoSaveEnabled
@@ -193,19 +243,50 @@ const game = new Game({
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = String(seconds % 60).padStart(2, "0");
     timeElement.textContent = `${minutes}:${remainingSeconds}`;
+    const roundDuration = CONFIG.game?.roundDurationSeconds ?? 90;
+    const timePercent = Math.max(0, Math.min(100, (seconds / roundDuration) * 100));
+    timeProgress.style.width = `${timePercent}%`;
+    timeProgress.classList.toggle("low-time", seconds <= 20);
+    timeTrack.setAttribute("aria-valuenow", String(seconds));
   },
   onGameOver: (title, message, autoRestart = false) => {
+    const scoreMessage = saveBestScore(game.score);
     overlayTitle.textContent = title;
-    overlayMessage.textContent = autoRestart ? message : `${message} Click to play again.`;
+    overlayMessage.textContent = `${scoreMessage} ${autoRestart ? message : "Click to play again."}`;
+    shareScoreStatus.textContent = "";
+    shareScoreButton.hidden = false;
     overlay.hidden = false;
     stopRecording(1500);
   },
   onGameRestart: () => {
     overlay.hidden = true;
+    shareScoreButton.hidden = true;
+    roundElement.textContent = String(game.roundNumber);
     if (poseTracker.isEnabled()) startRecording(poseTracker.microphoneStream);
   },
   onClutchSave: () => recorder?.markEvent("CLUTCH_SAVE"),
   onSmash: () => recorder?.markEvent("SMASH"),
+});
+
+shareScoreButton.addEventListener("click", async () => {
+  const challengeUrl = new URL(window.location.href);
+  challengeUrl.searchParams.set("challenge", String(game.score));
+  const text = `Beat my score of ${game.score} in 90 seconds on SwayBreak!`;
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: "SwayBreak challenge", text, url: challengeUrl.href });
+      shareScoreStatus.textContent = "Challenge shared.";
+    } else if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(`${text} ${challengeUrl.href}`);
+      shareScoreStatus.textContent = "Challenge link copied.";
+    } else {
+      shareScoreStatus.textContent = `${text} ${challengeUrl.href}`;
+    }
+  } catch (error) {
+    if (error.name === "AbortError") return;
+    console.error("Could not share score:", error);
+    shareScoreStatus.textContent = `Could not share score: ${error.message}`;
+  }
 });
 
 // Initialize Pose Tracker
@@ -219,8 +300,17 @@ const poseTracker = new PoseTracker({
   setTargetPaddleX: (x, leftRatio, rightRatio) => game.setTargetPaddleX(x, leftRatio, rightRatio),
   clearTargetPaddleX: () => game.clearTargetPaddleX(),
   onPostureEnabled: (microphoneStream) => {
+    cameraGuide.hidden = true;
+    postureButton.textContent = "Stop playing";
+    postureButton.classList.remove("awaiting-start");
+    postureStatus.textContent = "Lean to move. Reach out to widen your paddle; jump to smash.";
     startRecording(microphoneStream);
     game.startCountdown(CONFIG.game?.countdownSeconds ?? 3);
+  },
+  onPostureDisabled: () => {
+    cameraGuide.hidden = false;
+    postureButton.textContent = "Start playing";
+    postureButton.classList.add("awaiting-start");
   },
   onJumpTriggered: () => {
     game.triggerJump();
@@ -267,6 +357,7 @@ soundButton.addEventListener("click", async () => {
 // Posture control toggle
 postureButton.addEventListener("click", () => {
   audio.ensureAudio(game.gameOver);
+  postureStatus.hidden = false;
   if (poseTracker.isEnabled()) {
     stopRecording();
     poseTracker.disable();
@@ -323,3 +414,4 @@ function frame(now) {
 game.resetBricks();
 requestAnimationFrame(frame);
 postureStatus.textContent = "Enable posture control and allow camera access to start; microphone access is optional.";
+postureButton.classList.add("awaiting-start");

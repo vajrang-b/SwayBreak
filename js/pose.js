@@ -13,6 +13,7 @@ export class PoseTracker {
     setTargetPaddleX,
     clearTargetPaddleX,
     onPostureEnabled,
+    onPostureDisabled,
     onJumpTriggered,
   }) {
     this.video = video;
@@ -25,6 +26,7 @@ export class PoseTracker {
     this.setTargetPaddleX = setTargetPaddleX;
     this.clearTargetPaddleX = clearTargetPaddleX;
     this.onPostureEnabled = onPostureEnabled;
+    this.onPostureDisabled = onPostureDisabled;
     this.onJumpTriggered = onJumpTriggered;
 
     this.poseLandmarker = null;
@@ -409,6 +411,7 @@ export class PoseTracker {
 
   async enable() {
     this.postureButton.disabled = true;
+    this.postureButton.textContent = "Starting…";
     this.postureStatus.textContent = "Starting camera and pose detection…";
     try {
       if (!window.isSecureContext) {
@@ -471,7 +474,7 @@ export class PoseTracker {
       this.postureEnabled = true;
       const paddle = this.getPaddle();
       this.setTargetPaddleX(paddle.x);
-      this.postureButton.textContent = "Disable posture control";
+      this.postureButton.textContent = "Stop playing";
       this.postureStatus.textContent = "Tracking body (CPU mode) — lean left or right to steer.";
       this.onPostureEnabled?.(this.microphoneStream);
     } catch (error) {
@@ -486,7 +489,8 @@ export class PoseTracker {
       this.lastLandmarks = null;
       this.posePreview.hidden = true;
       this.drawPreview();
-      this.postureButton.textContent = "Enable posture control";
+      this.postureButton.textContent = "Start playing";
+      this.onPostureDisabled?.();
 
       if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
         this.postureStatus.innerHTML = `<strong>Camera blocked by browser.</strong> Click the lock or camera icon in your address bar (🔒 / 📷) &gt; set Camera to <strong>Allow</strong> &gt; click button again.`;
@@ -516,7 +520,8 @@ export class PoseTracker {
     this.video.srcObject = null;
     this.posePreview.hidden = true;
     this.drawPreview();
-    this.postureButton.textContent = "Enable posture control";
+    this.postureButton.textContent = "Start playing";
     this.postureStatus.textContent = "Posture control is off.";
+    this.onPostureDisabled?.();
   }
 }

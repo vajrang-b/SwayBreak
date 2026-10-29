@@ -549,22 +549,38 @@ export class Game {
     this.ctx.clearRect(0, 0, this.width, this.height);
     this.ctx.fillStyle = "#171f31";
     this.ctx.fillRect(0, 0, this.width, this.height);
+    const now = performance.now();
 
     for (const brick of this.bricks) {
       if (!brick.visible) continue;
-      this.ctx.fillStyle = brick.mystery ? "#8b7bff" : brick.color;
+      this.ctx.save();
+      const pulse = brick.mystery ? 0.72 + (Math.sin(now / 360) + 1) * 0.14 : 1;
+      this.ctx.globalAlpha = pulse;
+      this.ctx.shadowColor = brick.mystery ? "#a59aff" : brick.color;
+      this.ctx.shadowBlur = brick.mystery ? 16 : 8;
+      const gradient = this.ctx.createLinearGradient(0, brick.y, 0, brick.y + brick.height);
+      gradient.addColorStop(0, brick.mystery ? "#b9adff" : this.lightenColor(brick.color));
+      gradient.addColorStop(0.35, brick.mystery ? "#9887ff" : brick.color);
+      gradient.addColorStop(1, brick.mystery ? "#6555d9" : brick.color);
+      this.ctx.fillStyle = gradient;
       this.ctx.beginPath();
       this.ctx.roundRect(brick.x, brick.y, brick.width, brick.height, 6);
       this.ctx.fill();
+      this.ctx.shadowBlur = 0;
+      this.ctx.strokeStyle = brick.mystery ? "#ded7ffcc" : "#ffffff9c";
+      this.ctx.lineWidth = 1;
+      this.ctx.beginPath();
+      this.ctx.moveTo(brick.x + 7, brick.y + 1);
+      this.ctx.lineTo(brick.x + brick.width - 7, brick.y + 1);
+      this.ctx.stroke();
       if (brick.mystery) {
-        this.ctx.save();
         this.ctx.fillStyle = "#fff";
         this.ctx.font = "bold 18px system-ui, sans-serif";
         this.ctx.textAlign = "center";
         this.ctx.textBaseline = "middle";
         this.ctx.fillText("?", brick.x + brick.width / 2, brick.y + brick.height / 2);
-        this.ctx.restore();
       }
+      this.ctx.restore();
     }
 
     // Draw Particles
@@ -682,10 +698,47 @@ export class Game {
       this.ctx.restore();
     } else {
       this.ctx.save();
-      this.ctx.font = '28px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+      const ballDisplaySize = this.waitingForPosture ? 40 : 28;
+      this.ctx.font = `${ballDisplaySize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
       this.ctx.textAlign = "center";
       this.ctx.textBaseline = "middle";
       this.ctx.fillText("🏀", this.ball.x, this.ball.y);
+      this.ctx.restore();
+    }
+
+    if (this.waitingForPosture) {
+      const alpha = 0.34 + (Math.sin(now / 700) + 1) * 0.12;
+      this.ctx.save();
+      this.ctx.globalAlpha = alpha;
+      this.ctx.strokeStyle = "#a59aff";
+      this.ctx.fillStyle = "#c8c0ff";
+      this.ctx.lineWidth = 3;
+      this.ctx.lineCap = "round";
+      const centerY = this.paddle.y - 72;
+      this.ctx.beginPath();
+      this.ctx.moveTo(this.width / 2 - 86, centerY);
+      this.ctx.lineTo(this.width / 2 - 44, centerY);
+      this.ctx.moveTo(this.width / 2 + 86, centerY);
+      this.ctx.lineTo(this.width / 2 + 44, centerY);
+      this.ctx.stroke();
+      this.ctx.beginPath();
+      this.ctx.moveTo(this.width / 2 - 86, centerY);
+      this.ctx.lineTo(this.width / 2 - 98, centerY - 9);
+      this.ctx.lineTo(this.width / 2 - 98, centerY + 9);
+      this.ctx.closePath();
+      this.ctx.fill();
+      this.ctx.beginPath();
+      this.ctx.moveTo(this.width / 2 + 86, centerY);
+      this.ctx.lineTo(this.width / 2 + 98, centerY - 9);
+      this.ctx.lineTo(this.width / 2 + 98, centerY + 9);
+      this.ctx.closePath();
+      this.ctx.fill();
+      this.ctx.globalAlpha = 0.75;
+      this.ctx.fillStyle = "#c8d0e8";
+      this.ctx.font = "700 24px system-ui, sans-serif";
+      this.ctx.textAlign = "center";
+      this.ctx.textBaseline = "middle";
+      this.ctx.fillText("Lean to move", this.width / 2, centerY);
       this.ctx.restore();
     }
 
@@ -743,5 +796,14 @@ export class Game {
       this.ctx.fillText("GO!", this.width / 2, this.height / 2);
       this.ctx.restore();
     }
+  }
+
+  lightenColor(color) {
+    const match = /^#([0-9a-f]{6})$/i.exec(color);
+    if (!match) return color;
+    const value = Number.parseInt(match[1], 16);
+    const channels = [16, 8, 0].map((shift) => (value >> shift) & 0xff);
+    const lighter = channels.map((channel) => Math.round(channel + (255 - channel) * 0.28));
+    return `#${lighter.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
   }
 }

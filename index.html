@@ -3,55 +3,71 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Posture Breaker</title>
-    <link rel="stylesheet" href="css/styles.css?v=16">
+    <meta name="theme-color" content="#101522">
+    <title>SwayBreak</title>
+    <link rel="stylesheet" href="css/styles.css?v=19">
   </head>
   <body>
     <main>
       <header>
-        <h1>Posture Breaker</h1>
+        <div class="brand">
+          <h1>SwayBreak</h1>
+          <p>Lean. Jump. Smash.</p>
+        </div>
         <div class="scoreboard" aria-live="polite">
-          <span>Score: <strong id="score">0</strong></span>
-          <span aria-live="off">Time: <strong id="time">1:30</strong></span>
-          <span>Lives: <strong id="lives" aria-label="unlimited">∞</strong></span>
+          <div class="score-pill score-pill-primary"><span>Score</span><strong id="score">0</strong></div>
+          <div class="score-pill time-pill"><span>Time</span><strong id="time" aria-live="off">1:30</strong></div>
+          <div class="score-pill"><span>Round</span><strong id="round">1</strong></div>
+          <div class="score-pill"><span>Best</span><strong id="best-score">--</strong></div>
+          <div class="score-pill"><span>Lives</span><strong id="lives" aria-label="unlimited">∞</strong></div>
         </div>
       </header>
+      <div class="time-track" role="meter" aria-label="Round time remaining" aria-valuemin="0" aria-valuemax="90" aria-valuenow="90">
+        <div id="time-progress"></div>
+      </div>
 
       <div class="controls">
         <div class="buttons-row">
-          <button id="posture-button" type="button">Enable posture control</button>
-          <button id="sound-button" type="button" aria-label="Mute sound" aria-pressed="true">Sound: On</button>
-          <a class="button-link" href="recordings.html">My recordings</a>
+          <button id="posture-button" class="primary-button" type="button">Start playing</button>
+          <button id="sound-button" class="secondary-button" type="button" aria-label="Mute sound" aria-pressed="true">Sound: On</button>
+          <a class="button-link secondary-button" href="recordings.html">My recordings</a>
         </div>
-        <label class="auto-save-setting"><input id="auto-save-toggle" type="checkbox"> Automatically save recordings on this device</label>
-        <p id="auto-save-status" role="status">Saved recordings stay in this browser on this device.</p>
-        <div id="posture-status" role="status">Posture control is off.</div>
-        <div id="recording-status" role="status" aria-live="polite">Recording starts when posture control is enabled.</div>
+        <div class="settings-row">
+          <label class="auto-save-setting"><input id="auto-save-toggle" type="checkbox"> Auto-save recordings</label>
+          <p class="helper-line">Camera required, mic optional. Recordings stay in this browser.</p>
+        </div>
+        <div id="auto-save-status" class="visually-hidden" role="status"></div>
+        <div id="posture-status" class="inline-status" role="status" hidden></div>
+        <div id="recording-status" class="inline-status" role="status" aria-live="polite" hidden></div>
         <div class="recording-actions">
           <button id="save-recording-button" type="button" hidden>Save video</button>
           <button id="save-events-button" type="button" hidden>Save event markers</button>
         </div>
       </div>
 
+      <p id="challenge-status" class="challenge-banner" role="status" hidden></p>
       <section class="game-wrap" aria-label="Brick breaker game">
         <canvas id="game" width="960" height="600" aria-label="Game field"></canvas>
         <div class="overlay" id="overlay" hidden>
           <div class="overlay-card">
             <h2 id="overlay-title"></h2>
             <p id="overlay-message"></p>
+            <button id="share-score-button" type="button" hidden>Share challenge</button>
+            <p id="share-score-status" role="status" aria-live="polite"></p>
           </div>
         </div>
       </section>
 
-      <p class="help">
-        Lean your torso left/right to steer. Reach arms sideways to widen paddle wings.
-        <strong>Jump up</strong> to leap the paddle and trigger a high-velocity <strong>SMASH</strong> pierce hit!
-      </p>
+      <p class="help">Lean to move <span aria-hidden="true">·</span> Reach out to widen <span aria-hidden="true">·</span> Jump to smash</p>
     </main>
 
+    <div id="camera-guide" class="camera-guide">
+      <span class="camera-guide-icon">◎</span>
+      <span>Stand back so your shoulders show</span>
+    </div>
     <video id="camera" playsinline muted hidden></video>
     <canvas class="camera" id="pose-preview" width="240" height="180" aria-label="Skeleton preview" hidden></canvas>
 
-    <script type="module" src="js/main.js?v=22"></script>
+    <script type="module" src="js/main.js?v=27"></script>
   </body>
 </html>

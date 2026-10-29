@@ -1,4 +1,4 @@
-# Weight Loss Games
+# SwayBreak
 
 ## Automatic game and webcam recording
 
@@ -16,6 +16,16 @@ recordings page; the **Save video** button remains available for the latest
 recording. Recordings are stored only in this browser on this device, not
 uploaded, and may be removed if site data is cleared. Microphone capture stops
 when posture control is disabled.
+
+## Rounds, combos, and best scores
+
+Clear bricks without missing to build a combo: streaks of 3, 5, and 10 award
+extra points. The ball speeds up by 5% for every 10 bricks cleared. Rounds
+alternate between the full grid and a diamond brick layout. Your best score is
+saved in this browser, and the end screen offers a challenge link that tells
+others which score to beat in 90 seconds.
+The normal mode keeps unlimited misses.
+
 When clutch saves or SMASHes happen, a companion `.events.json` file lists
 their timestamps in seconds and milliseconds for editing.
 
