@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Ideas for making Posture Breaker more replayable and rewarding.">
+    <title>Posture Breaker Ideas</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: system-ui, sans-serif;
+        color: #1d2939;
+        background: #f3f6fa;
+      }
+
+      body {
+        margin: 0;
+        padding: 2rem 1rem;
+      }
+
+      main {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: clamp(1.25rem, 5vw, 3rem);
+        background: #fff;
+        border-radius: 1rem;
+        box-shadow: 0 12px 36px rgb(16 24 40 / 8%);
+      }
+
+      h1,
+      h2 {
+        color: #163b65;
+        line-height: 1.2;
+      }
+
+      h1 {
+        margin-top: 0;
+      }
+
+      h2 {
+        margin-top: 2rem;
+      }
+
+      p,
+      li {
+        line-height: 1.65;
+      }
+
+      li + li {
+        margin-top: 0.5rem;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          color-scheme: dark;
+          color: #e6edf5;
+          background: #101923;
+        }
+
+        main {
+          background: #1b2938;
+          box-shadow: 0 12px 36px rgb(0 0 0 / 24%);
+        }
+
+        h1,
+        h2 {
+          color: #a9d2ff;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <article>
+        <h1>Making Posture Breaker More Replayable</h1>
+        <p>
+          Addictive does not come from one big feature. It comes from a loop
+          that makes the player think “just one more round” and gives them a
+          reason to come back tomorrow.
+        </p>
+        <p>
+          Right now Posture Breaker has only one loop: lean, bounce, break
+          bricks, win, stop. There is no reason to play again, because the
+          second game is exactly the same as the first.
+        </p>
+        <p>Here is how to fix that, in the order that matters most:</p>
+
+        <section>
+          <h2>1. Make the 30 seconds feel great first</h2>
+          <p>
+            This is before any rewards or levels. If the core feel is slow,
+            nothing else will save it.
+          </p>
+          <ul>
+            <li>Faster ball that speeds up as you clear bricks</li>
+            <li>
+              Instant feedback on every hit: a SMASH flash, particles, a sound,
+              a tiny screen shake
+            </li>
+            <li>
+              Clutch save: reward and spotlight a last-second paddle save (see
+              the feature checklist below)
+            </li>
+            <li>No long countdown. One tap, and you are playing in 2 seconds</li>
+            <li>
+              Instant restart after a loss. Every extra click kills the “one
+              more” feeling
+            </li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Clutch save: make the near-miss matter</h2>
+          <p>
+            A save only counts as clutch when the ball is about to pass the
+            paddle and the player reaches it at the last moment. Ordinary
+            paddle bounces remain unchanged.
+          </p>
+          <ul>
+            <li>
+              <strong>Implemented:</strong> A clutch save is an edge catch where
+              the ball center is just outside the paddle but its edge still
+              touches it. It awards <strong>CLUTCH SAVE +10</strong> and one
+              additional SMASH pierce hit (up to the normal charge cap).
+            </li>
+            <li>
+              <strong>Implemented:</strong> A clutch catch triggers 0.3 seconds
+              of half-speed gameplay, a paddle flash, “CLUTCH SAVE +10” text,
+              a high-pitched sound, and a small particle burst. Normal saves
+              do not receive these effects or rewards.
+            </li>
+            <li>
+              <strong>Implemented:</strong> Clutch moments are marked in the
+              recording with millisecond timestamps. A companion
+              <code>.events.json</code> file is downloaded for clutch saves and
+              SMASHes.
+            </li>
+            <li>
+              <strong>Editing guidance:</strong> Keep 1 second before the touch,
+              play the touch at about half speed, replay it at normal speed,
+              then cut. Do not cut on the touch frame; the lead-in makes the
+              save feel close. Automatic clip extraction/replay editing is not
+              implemented; this remains a post-production instruction.
+            </li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>2. Make every round short and close</h2>
+          <ul>
+            <li>
+              <strong>Implemented:</strong> Rounds last 90 seconds. When time
+              runs out, the score appears and a new round starts automatically.
+            </li>
+            <li>
+              End with a number that pulls you back: “You scored 690. Your best
+              is 720. 30 points away.”
+            </li>
+            <li>
+              That near-miss is the strongest hook in this kind of game. A win
+              by a mile is forgettable. A loss by 30 points is not.
+            </li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>3. Add surprise inside the round</h2>
+          <p>Predictable bricks get boring fast. Add:</p>
+          <ul>
+            <li>
+              <strong>Implemented:</strong> Three mystery bricks per round
+              grant a smash charge for three pierce hits.
+            </li>
+            <li>Combo bonuses for breaking 3, 5, 10 bricks without missing</li>
+            <li>
+              A boss brick at the end that takes 3 hits and explodes into bonus
+              points
+            </li>
+            <li>
+              Different brick layouts each round, so the player cannot just
+              memorize one pattern
+            </li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>4. Add progress outside the round</h2>
+          <p>This is what brings people back tomorrow:</p>
+          <ul>
+            <li>
+              Levels: Level 1 is easy, Level 5 is fast, Level 10 adds moving
+              bricks
+            </li>
+            <li>
+              Unlocks by score, not by money: new paddle skins, ball trails,
+              characters, backgrounds
+            </li>
+            <li>
+              Personal best, weekly best, and a leaderboard for a class, clinic,
+              or office team
+            </li>
+            <li>
+              Daily challenge: one special layout per day, same for everyone,
+              so players can compare scores
+            </li>
+            <li>
+              A streak, but a healthy one: “3 days in a row” for a daily break,
+              not hours of play in one sitting
+            </li>
+          </ul>
+        </section>
+      </article>
+    </main>
+  </body>
+</html>

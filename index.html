@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Posture Breaker</title>
+    <link rel="stylesheet" href="css/styles.css?v=14">
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Posture Breaker</h1>
+        <div class="scoreboard" aria-live="polite">
+          <span>Score: <strong id="score">0</strong></span>
+          <span aria-live="off">Time: <strong id="time">1:30</strong></span>
+          <span>Lives: <strong id="lives" aria-label="unlimited">∞</strong></span>
+        </div>
+      </header>
+
+      <div class="controls">
+        <div class="buttons-row">
+          <button id="posture-button" type="button">Enable posture control</button>
+          <button id="sound-button" type="button" aria-label="Mute sound" aria-pressed="true">Sound: On</button>
+        </div>
+        <div id="posture-status" role="status">Posture control is off.</div>
+        <div id="recording-status" role="status" aria-live="polite">Recording starts when posture control is enabled.</div>
+      </div>
+
+      <section class="game-wrap" aria-label="Brick breaker game">
+        <canvas id="game" width="960" height="600" aria-label="Game field"></canvas>
+        <div class="overlay" id="overlay" hidden>
+          <div class="overlay-card">
+            <h2 id="overlay-title"></h2>
+            <p id="overlay-message"></p>
+          </div>
+        </div>
+      </section>
+
+      <p class="help">
+        Lean your torso left/right to steer. Reach arms sideways to widen paddle wings.
+        <strong>Jump up</strong> to leap the paddle and trigger a high-velocity <strong>SMASH</strong> pierce hit!
+      </p>
+    </main>
+
+    <video id="camera" playsinline muted hidden></video>
+    <canvas class="camera" id="pose-preview" width="240" height="180" aria-label="Skeleton preview" hidden></canvas>
+
+    <script type="module" src="js/main.js?v=19"></script>
+  </body>
+</html>
