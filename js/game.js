@@ -44,6 +44,8 @@ export class Game {
     this.totalJumpDuration = CONFIG.jump?.jumpDurationSec ?? 0.42;
     this.particles = [];
     this.floatingTexts = [];
+    this.explosionEffect = null;
+    this.ballReturn = null;
     this.ball = {
       x: this.width / 2,
       y: this.height - 65,
@@ -117,6 +119,7 @@ export class Game {
 
   startCountdown(seconds = 3) {
     this.waitingForPosture = false;
+    this.ballReturn = null;
     this.countdown = seconds;
     this.countdownGoTimer = 0;
     this.countdownBeeped = {};
@@ -152,7 +155,32 @@ export class Game {
   }
 
   resetBall() {
-    this.startCountdown(2);
+    this.ball.isPowerBall = false;
+    this.ball.powerHitsRemaining = 0;
+    this.ball.trail = [];
+    this.ball.vx = 0;
+    this.ball.vy = 0;
+
+    const startX = Math.max(this.ball.radius, Math.min(this.width - this.ball.radius, this.ball.x));
+    const startY = this.height + this.ball.radius;
+    this.ball.x = startX;
+    this.ball.y = startY;
+    this.ballReturn = {
+      startX,
+      startY,
+      elapsed: 0,
+      explosionDuration: 0.3,
+      duration: 0.62,
+      returnSoundPlayed: false,
+    };
+    this.explosionEffect = {
+      x: startX,
+      y: this.height - 12,
+      elapsed: 0,
+      duration: 0.42,
+    };
+    this.spawnExplosionParticles(startX, this.height - 12);
+    this.audio.playMissSound();
   }
 
   startAgain() {
@@ -179,6 +207,8 @@ export class Game {
     this.targetCenterX = this.width / 2;
     this.particles = [];
     this.floatingTexts = [];
+    this.explosionEffect = null;
+    this.ballReturn = null;
     this.ball.isPowerBall = false;
     this.ball.powerHitsRemaining = 0;
     this.ball.trail = [];
@@ -242,6 +272,24 @@ export class Game {
         maxLife: 0.65,
         color: Math.random() < 0.5 ? "#ffdd44" : "#ff5588",
         size: 3 + Math.random() * 3.5,
+      });
+    }
+  }
+
+  spawnExplosionParticles(x, y) {
+    const colors = ["#ffb454", "#ff6b45", "#ffdd44", "#ff5588"];
+    for (let i = 0; i < 24; i += 1) {
+      const angle = (Math.PI * 2 * i) / 24 + (Math.random() - 0.5) * 0.2;
+      const speed = 80 + Math.random() * 200;
+      this.particles.push({
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 0.28 + Math.random() * 0.3,
+        maxLife: 0.58,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        size: 2 + Math.random() * 4,
       });
     }
   }
@@ -349,6 +397,12 @@ export class Game {
         this.particles.splice(i, 1);
       }
     }
+    if (this.explosionEffect) {
+      this.explosionEffect.elapsed += delta;
+      if (this.explosionEffect.elapsed >= this.explosionEffect.duration) {
+        this.explosionEffect = null;
+      }
+    }
 
     // Update Floating Text
     for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
@@ -358,6 +412,34 @@ export class Game {
       if (ft.life <= 0) {
         this.floatingTexts.splice(i, 1);
       }
+    }
+
+    if (this.ballReturn) {
+      const returning = this.ballReturn;
+      returning.elapsed += delta;
+      if (returning.elapsed < returning.explosionDuration) return;
+
+      if (!returning.returnSoundPlayed) {
+        returning.returnSoundPlayed = true;
+        this.audio.playBallReturnSound?.();
+      }
+      const progress = Math.min(
+        1,
+        (returning.elapsed - returning.explosionDuration) / returning.duration,
+      );
+      const eased = 1 - (1 - progress) ** 3;
+      const targetX = this.paddle.x + this.paddle.width / 2;
+      const targetY = this.paddle.y - this.ball.radius - 2;
+      this.ball.x = returning.startX + (targetX - returning.startX) * eased;
+      this.ball.y = returning.startY + (targetY - returning.startY) * eased
+        - Math.sin(progress * Math.PI) * 36;
+
+      if (progress >= 1) {
+        this.ballReturn = null;
+        this.startCountdown(2);
+        this.audio.playBallCatchSound?.();
+      }
+      return;
     }
 
     // Power Ball trail
@@ -540,7 +622,6 @@ export class Game {
     } else if (this.ball.y - this.ball.radius > this.height) {
       this.comboStreak = 0;
       this.ball.isPowerBall = false;
-      this.audio.playMissSound();
       this.resetBall();
     }
   }
@@ -582,6 +663,28 @@ export class Game {
       }
       this.ctx.restore();
     }
+
+    if (this.explosionEffect) {
+      const progress = Math.min(1, this.explosionEffect.elapsed / this.explosionEffect.duration);
+      this.ctx.save();
+      this.ctx.globalAlpha = 1 - progress;
+      this.ctx.strokeStyle = "#ffb454";
+      this.ctx.lineWidth = 5 * (1 - progress) + 1;
+      this.ctx.shadowColor = "#ff6b45";
+      this.ctx.shadowBlur = 18 * (1 - progress);
+      this.ctx.beginPath();
+      this.ctx.arc(
+        this.explosionEffect.x,
+        this.explosionEffect.y,
+        10 + progress * 48,
+        0,
+        Math.PI * 2,
+      );
+      this.ctx.stroke();
+      this.ctx.restore();
+    }
+
+    if (this.gameOver) return;
 
     // Draw Particles
     for (const p of this.particles) {

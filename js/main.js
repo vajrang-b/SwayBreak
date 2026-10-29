@@ -1,7 +1,7 @@
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from "./constants.js?v=12";
-import * as audio from "./audio.js?v=15";
-import { Game } from "./game.js?v=19";
-import { PoseTracker } from "./pose.js?v=14";
+import * as audio from "./audio.js?v=21";
+import { Game } from "./game.js?v=21";
+import { PoseTracker } from "./pose.js?v=15";
 import { CONFIG } from "./config.js?v=16";
 import { createPostureRecorder } from "./autorecord.js?v=3";
 import { isAutoSaveEnabled, saveRecording, setAutoSaveEnabled } from "./recording-storage.js?v=1";
@@ -252,16 +252,18 @@ const game = new Game({
   onGameOver: (title, message, autoRestart = false) => {
     const scoreMessage = saveBestScore(game.score);
     overlayTitle.textContent = title;
-    overlayMessage.textContent = `${scoreMessage} ${autoRestart ? message : "Click to play again."}`;
+    overlayMessage.textContent = `${scoreMessage} ${autoRestart ? message : "Choose Play again to start another round."}`;
     shareScoreStatus.textContent = "";
     shareScoreButton.hidden = false;
     overlay.hidden = false;
+    if (poseTracker.isEnabled()) postureButton.textContent = "Play again";
     stopRecording(1500);
   },
   onGameRestart: () => {
     overlay.hidden = true;
     shareScoreButton.hidden = true;
     roundElement.textContent = String(game.roundNumber);
+    postureButton.textContent = poseTracker.isEnabled() ? "Stop playing" : "Start playing";
     if (poseTracker.isEnabled()) startRecording(poseTracker.microphoneStream);
   },
   onClutchSave: () => recorder?.markEvent("CLUTCH_SAVE"),
@@ -301,11 +303,16 @@ const poseTracker = new PoseTracker({
   clearTargetPaddleX: () => game.clearTargetPaddleX(),
   onPostureEnabled: (microphoneStream) => {
     cameraGuide.hidden = true;
-    postureButton.textContent = "Stop playing";
+    postureButton.textContent = game.gameOver ? "Play again" : "Stop playing";
     postureButton.classList.remove("awaiting-start");
+    postureStatus.hidden = true;
     postureStatus.textContent = "Lean to move. Reach out to widen your paddle; jump to smash.";
-    startRecording(microphoneStream);
-    game.startCountdown(CONFIG.game?.countdownSeconds ?? 3);
+    if (game.gameOver) {
+      game.startAgain();
+    } else {
+      startRecording(microphoneStream);
+      game.startCountdown(CONFIG.game?.countdownSeconds ?? 3);
+    }
   },
   onPostureDisabled: () => {
     cameraGuide.hidden = false;
@@ -357,6 +364,10 @@ soundButton.addEventListener("click", async () => {
 // Posture control toggle
 postureButton.addEventListener("click", () => {
   audio.ensureAudio(game.gameOver);
+  if (game.gameOver && poseTracker.isEnabled()) {
+    game.startAgain();
+    return;
+  }
   postureStatus.hidden = false;
   if (poseTracker.isEnabled()) {
     stopRecording();
@@ -369,13 +380,15 @@ postureButton.addEventListener("click", () => {
 // Canvas and overlay restart clicks (no paddle steering)
 function handleRestartAttempt() {
   audio.ensureAudio(game.gameOver);
-  if (game.gameOver) {
+  if (game.gameOver && poseTracker.isEnabled()) {
     game.startAgain();
   }
 }
 
 canvas.addEventListener("pointerdown", handleRestartAttempt);
-overlay.addEventListener("click", handleRestartAttempt);
+overlay.addEventListener("click", (event) => {
+  if (event.target === overlay) handleRestartAttempt();
+});
 
 window.addEventListener("pointerdown", () => audio.ensureAudio(game.gameOver), { passive: true });
 window.addEventListener("touchstart", () => audio.ensureAudio(game.gameOver), { passive: true });
@@ -389,7 +402,7 @@ window.addEventListener("keydown", (event) => {
   if (["ArrowUp", "w", "W"].includes(event.key) && !game.gameOver) {
     game.triggerJump();
   }
-  if (event.key === " " && game.gameOver) {
+  if (event.key === " " && game.gameOver && poseTracker.isEnabled()) {
     game.startAgain();
   } else if (event.key === " " && !game.gameOver) {
     game.triggerJump();

@@ -21,7 +21,14 @@ export const audioState = {
   gainNode: null,
   compressor: null,
   noiseBuffer: null,
+  recordingMicGain: null,
 };
+
+let recordingMicLevel = 0.6;
+let explosionSoundBuffer = null;
+let explosionSoundLoadPromise = null;
+let fahhSoundBuffer = null;
+let fahhSoundLoadPromise = null;
 
 export function isSoundEnabled() {
   return audioState.enabled;
@@ -29,6 +36,27 @@ export function isSoundEnabled() {
 
 export function getAudioContext() {
   return audioState.context;
+}
+
+export function setRecordingMicLevel(level) {
+  if (!Number.isFinite(level) || level < 0 || level > 1) {
+    throw new RangeError("Recording microphone level must be between 0 and 1.");
+  }
+  recordingMicLevel = level;
+  if (audioState.recordingMicGain) {
+    const micGain = audioState.recordingMicGain.gain;
+    const now = audioState.context.currentTime;
+    micGain.cancelScheduledValues(now);
+    micGain.value = recordingMicLevel;
+  }
+}
+
+function duckRecordingMic(atTime = audioState.context?.currentTime) {
+  const micGain = audioState.recordingMicGain?.gain;
+  if (!micGain || recordingMicLevel === 0 || atTime === undefined) return;
+  micGain.cancelScheduledValues(atTime);
+  micGain.setTargetAtTime(0.05, atTime, 0.008);
+  micGain.setTargetAtTime(recordingMicLevel, atTime + 0.04, 0.05);
 }
 
 export function createRecordingAudioStream(microphoneStream = null) {
@@ -43,7 +71,13 @@ export function createRecordingAudioStream(microphoneStream = null) {
   const microphoneSource = hasLiveMicrophoneTrack
     ? context.createMediaStreamSource(microphoneStream)
     : null;
-  microphoneSource?.connect(destination);
+  const microphoneGain = microphoneSource ? context.createGain() : null;
+  if (microphoneGain) {
+    microphoneGain.gain.value = recordingMicLevel;
+    microphoneSource.connect(microphoneGain);
+    microphoneGain.connect(destination);
+    audioState.recordingMicGain = microphoneGain;
+  }
   let stopped = false;
   return {
     stream: destination.stream,
@@ -51,7 +85,11 @@ export function createRecordingAudioStream(microphoneStream = null) {
       if (stopped) return;
       stopped = true;
       compressor.disconnect(destination);
-      microphoneSource?.disconnect(destination);
+      microphoneSource?.disconnect();
+      microphoneGain?.disconnect();
+      if (audioState.recordingMicGain === microphoneGain) {
+        audioState.recordingMicGain = null;
+      }
       destination.stream.getTracks().forEach((track) => track.stop());
     },
   };
@@ -95,6 +133,40 @@ export function ensureAudio(isGameOver = false) {
     audioState.gainNode.gain.value = audioState.enabled ? 0.35 : 0;
   }
 
+  if (!explosionSoundLoadPromise) {
+    explosionSoundLoadPromise = fetch(new URL("../sounds/explosion-form-roblox-real.mp3", import.meta.url))
+      .then((response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.arrayBuffer();
+      })
+      .then((audioData) => audioState.context.decodeAudioData(audioData))
+      .then((buffer) => {
+        explosionSoundBuffer = buffer;
+        return buffer;
+      })
+      .catch((error) => {
+        console.warn("Could not load the explosion sound; using the synthesized fallback.", error);
+        return null;
+      });
+  }
+
+  if (!fahhSoundLoadPromise) {
+    fahhSoundLoadPromise = fetch(new URL("../sounds/fahhh_KcgAXfs.mp3", import.meta.url))
+      .then((response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.arrayBuffer();
+      })
+      .then((audioData) => audioState.context.decodeAudioData(audioData))
+      .then((buffer) => {
+        fahhSoundBuffer = buffer;
+        return buffer;
+      })
+      .catch((error) => {
+        console.warn("Could not load the smash vocal sound.", error);
+        return null;
+      });
+  }
+
   if (audioState.context.state === "suspended") {
     void audioState.context.resume();
   }
@@ -116,6 +188,7 @@ function playTone({ type = "triangle", frequency = 440, frequencyEnd = null, dur
   if (!audioState.enabled || !ensureAudio()) return;
   const context = audioState.context;
   const now = context.currentTime + delay;
+  duckRecordingMic(now);
   const osc = context.createOscillator();
   const gain = context.createGain();
   const panner = createPanner(context, pan);
@@ -139,6 +212,7 @@ export function playAirySound({ duration = 0.12, volume = 0.015, frequency = 900
   if (!audioState.enabled || !ensureAudio() || !audioState.noiseBuffer) return;
   const context = audioState.context;
   const now = context.currentTime;
+  duckRecordingMic(now);
   const source = context.createBufferSource();
   const filter = context.createBiquadFilter();
   const envelope = context.createGain();
@@ -212,11 +286,50 @@ export function playSmashSound(pan = 0) {
   // Deep thump only. The old sawtooth laser is removed, it was the harsh part.
   playTone({ type: "sine", frequency: 160, frequencyEnd: 45, duration: 0.18, volume: 0.28, pan });
   playAirySound({ duration: 0.12, volume: 0.02, frequency: 1800, pan });
+  playFahhSound(pan);
+}
+
+export function playFahhSound(pan = 0) {
+  if (!audioState.enabled || !ensureAudio() || !fahhSoundBuffer) return;
+  duckRecordingMic();
+  const source = audioState.context.createBufferSource();
+  const volume = audioState.context.createGain();
+  const panner = createPanner(audioState.context, pan);
+  source.buffer = fahhSoundBuffer;
+  volume.gain.value = 0.35;
+  source.connect(volume);
+  volume.connect(panner || audioState.gainNode);
+  if (panner) panner.connect(audioState.gainNode);
+  source.start();
 }
 
 export function playMissSound() {
-  // Gentle fall, shorter and quieter than before.
-  playTone({ type: "triangle", frequency: 200, frequencyEnd: 100, duration: 0.25, volume: 0.11 });
+  if (!audioState.enabled || !ensureAudio()) return;
+  if (explosionSoundBuffer) {
+    duckRecordingMic();
+    const source = audioState.context.createBufferSource();
+    const volume = audioState.context.createGain();
+    source.buffer = explosionSoundBuffer;
+    volume.gain.value = 0.48;
+    source.connect(volume);
+    volume.connect(audioState.gainNode);
+    source.start();
+    return;
+  }
+
+  // Use a synthesized blast until the supplied sound file is ready.
+  playTone({ type: "sine", frequency: 150, frequencyEnd: 38, duration: 0.32, volume: 0.32 });
+  playTone({ type: "triangle", frequency: 92, frequencyEnd: 45, duration: 0.22, volume: 0.18 });
+  playAirySound({ duration: 0.24, volume: 0.045, frequency: 520 });
+}
+
+export function playBallReturnSound() {
+  playTone({ type: "sine", frequency: 260, frequencyEnd: 720, duration: 0.32, volume: 0.13 });
+  playAirySound({ duration: 0.28, volume: 0.035, frequency: 850 });
+}
+
+export function playBallCatchSound() {
+  playTone({ type: "triangle", frequency: 440, frequencyEnd: 660, duration: 0.13, volume: 0.11 });
 }
 
 export function playGameEndSound() {

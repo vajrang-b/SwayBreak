@@ -156,7 +156,7 @@ button:hover {
 }
 
 button:focus-visible,
-.button-link:focus-visible {
+summary:focus-visible {
   outline: 3px solid #fff;
   outline-offset: 3px;
 }
@@ -182,7 +182,7 @@ button:focus-visible,
 }
 
 .secondary-button,
-.button-link.secondary-button {
+.menu-trigger {
   min-height: 38px;
   padding: 8px 12px;
   border: 1px solid #ffffff12;
@@ -194,7 +194,7 @@ button:focus-visible,
 }
 
 .secondary-button:hover,
-.button-link.secondary-button:hover {
+.menu-trigger:hover {
   background: #303d57;
 }
 
@@ -203,13 +203,65 @@ button:focus-visible,
   border-color: #5ce1b833;
 }
 
-.button-link {
+.more-menu {
+  position: relative;
+}
+
+.menu-trigger {
   display: inline-flex;
   align-items: center;
-  min-height: 38px;
-  padding: 8px 12px;
-  font-weight: 700;
+  gap: 7px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.menu-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.menu-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  width: min(250px, calc(100vw - 32px));
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #35415c;
+  border-radius: 12px;
+  background: #171f31;
+  box-shadow: 0 12px 30px #0008;
+}
+
+.menu-link {
+  color: #eef2ff;
+  font-weight: 750;
   text-decoration: none;
+}
+
+.menu-link:hover {
+  color: #a59aff;
+}
+
+.menu-setting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #eef2ff;
+  font-size: 0.86rem;
+}
+
+.menu-setting input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #8b7bff;
+}
+
+.menu-panel p {
+  margin: -6px 0 0;
+  color: #aab5d0;
+  font-size: 0.76rem;
 }
 
 @keyframes start-pulse {
@@ -217,14 +269,6 @@ button:focus-visible,
   50% { box-shadow: 0 0 30px #8b7bff88, inset 0 1px #ffffff75; }
 }
 
-.settings-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 16px;
-}
-
-.auto-save-setting,
 .recording-settings label {
   display: flex;
   align-items: center;
@@ -233,18 +277,10 @@ button:focus-visible,
   font-size: 0.82rem;
 }
 
-.auto-save-setting input,
 .recording-settings input {
   width: 1rem;
   height: 1rem;
   accent-color: #8b7bff;
-}
-
-.helper-line {
-  margin: 0;
-  color: #8f9db8;
-  font-size: 0.78rem;
-  line-height: 1.35;
 }
 
 .inline-status {
@@ -390,6 +426,10 @@ button:focus-visible,
   display: none;
 }
 
+.camera-preview-slot {
+  display: contents;
+}
+
 .camera {
   position: fixed;
   right: 16px;
@@ -473,13 +513,20 @@ button:focus-visible,
 
 @media (max-width: 768px) {
   body {
-    padding: 16px 12px calc(140px + env(safe-area-inset-bottom, 0px));
+    place-items: start center;
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 12px calc(24px + env(safe-area-inset-bottom, 0px));
   }
 
   header {
     align-items: flex-start;
     flex-direction: column;
-    margin-bottom: 10px;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .brand p,
+  .help {
+    display: none;
   }
 
   .scoreboard {
@@ -499,36 +546,57 @@ button:focus-visible,
   }
 
   .controls {
-    gap: 7px;
-    margin-bottom: 10px;
+    gap: 5px;
+    margin-bottom: 5px;
   }
 
   .buttons-row {
-    gap: 7px;
+    gap: 6px;
   }
 
   .primary-button {
+    min-height: 42px;
     flex: 1 1 100%;
+    padding: 8px 16px;
+  }
+
+  .secondary-button,
+  .menu-trigger {
+    min-height: 34px;
+    padding: 6px 10px;
+    font-size: 0.78rem;
+  }
+
+  .menu-panel {
+    right: auto;
+    left: 0;
+  }
+
+  .camera-preview-slot {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 8px auto 0;
   }
 
   .camera-guide {
-    right: calc(12px + env(safe-area-inset-right, 0px));
-    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-    left: auto;
-    width: min(112px, 30vw);
-    min-height: 88px;
+    position: relative;
+    inset: auto;
+    width: min(220px, 58vw);
+    min-height: 76px;
+    padding: 8px 12px;
+    font-size: 0.72rem;
     transform: none;
-    font-size: 0.68rem;
   }
 
   .camera {
-    right: calc(12px + env(safe-area-inset-right, 0px));
-    left: auto;
-    top: auto;
-    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    position: relative;
+    inset: auto;
+    width: min(220px, 58vw);
+    max-height: 32vh;
+    margin: 0;
     transform: none;
-    width: min(112px, 30vw);
-    height: auto;
+    object-fit: contain;
   }
 }
 

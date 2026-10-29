@@ -360,6 +360,7 @@ export class PoseTracker {
           if (this.postureStatus.textContent !== statusMsg) {
             this.postureStatus.textContent = statusMsg;
           }
+          this.postureStatus.hidden = true;
         } else {
           this.droppedFrames += 1;
           const maxDropped = CONFIG.tracking?.droppedFramesDebounce ?? 4;
@@ -371,6 +372,7 @@ export class PoseTracker {
             if (this.postureStatus.textContent !== noPersonMsg) {
               this.postureStatus.textContent = noPersonMsg;
             }
+            this.postureStatus.hidden = false;
           }
         }
       } catch (err) {

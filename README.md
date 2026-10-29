@@ -17,6 +17,18 @@ recording. Recordings are stored only in this browser on this device, not
 uploaded, and may be removed if site data is cleared. Microphone capture stops
 when posture control is disabled.
 
+During game sounds, microphone audio in the recording is briefly ducked to
+reduce speaker echo, then restored. Headphones are still the most reliable way
+to prevent game audio from leaking into the microphone. The recording mic level
+can be set with `audio.setRecordingMicLevel(0)` for game audio only or
+`audio.setRecordingMicLevel(0.6)` for reduced microphone audio.
+
+Sound effects are stored in `sounds/`. When the ball drops, the game plays
+`sounds/explosion-form-roblox-real.mp3`, then animates it back to the paddle
+with a return swoosh and catch sound. If the audio file cannot load, a
+synthesized blast is used instead. Smashes also play the supplied
+`sounds/fahhh_KcgAXfs.mp3` vocal cue along with the existing impact sound.
+
 ## Rounds, combos, and best scores
 
 Clear bricks without missing to build a combo: streaks of 3, 5, and 10 award
