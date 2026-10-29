@@ -1,6 +1,6 @@
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from "./constants.js?v=12";
 import * as audio from "./audio.js?v=15";
-import { Game } from "./game.js?v=15";
+import { Game } from "./game.js?v=16";
 import { PoseTracker } from "./pose.js?v=13";
 import { CONFIG } from "./config.js?v=15";
 import { createPostureRecorder } from "./autorecord.js?v=3";
@@ -30,6 +30,7 @@ let recordingHasMicrophone = false;
 let pendingRecording = null;
 let pendingEventLog = null;
 let autoSaveEnabled = true;
+let recordingStopTimer = 0;
 
 try {
   autoSaveEnabled = isAutoSaveEnabled();
@@ -51,6 +52,8 @@ function downloadBlob(blob, filename) {
 
 function startRecording(microphoneStream = null) {
   if (!recorder) return;
+  clearTimeout(recordingStopTimer);
+  recordingStopTimer = 0;
   try {
     recordingHasMicrophone = microphoneStream?.getAudioTracks()
       .some((track) => track.readyState === "live") || false;
@@ -61,7 +64,17 @@ function startRecording(microphoneStream = null) {
   }
 }
 
-function stopRecording() {
+function stopRecording(delayMs = 0) {
+  clearTimeout(recordingStopTimer);
+  recordingStopTimer = 0;
+  if (delayMs > 0 && recorder?.isRecording()) {
+    recordingStatus.textContent = "Round complete. Capturing the win moment…";
+    recordingStopTimer = setTimeout(() => {
+      recordingStopTimer = 0;
+      stopRecording();
+    }, delayMs);
+    return;
+  }
   if (recorder?.isRecording()) {
     recorder.stop();
     recordingStatus.textContent = "Saving your game and webcam recording…";
@@ -185,11 +198,11 @@ const game = new Game({
     overlayTitle.textContent = title;
     overlayMessage.textContent = autoRestart ? message : `${message} Click to play again.`;
     overlay.hidden = false;
-    stopRecording();
+    stopRecording(1500);
   },
   onGameRestart: () => {
     overlay.hidden = true;
-    if (poseTracker.isEnabled()) startRecording();
+    if (poseTracker.isEnabled()) startRecording(poseTracker.microphoneStream);
   },
   onClutchSave: () => recorder?.markEvent("CLUTCH_SAVE"),
   onSmash: () => recorder?.markEvent("SMASH"),
@@ -295,15 +308,6 @@ window.addEventListener("keydown", (event) => {
 // Preload pose detector model in background
 poseTracker.preloadModel();
 
-// Auto-start posture control if camera permission is already granted
-if (navigator.permissions?.query) {
-  navigator.permissions.query({ name: "camera" }).then((status) => {
-    if (status.state === "granted") {
-      void poseTracker.enable();
-    }
-  }).catch(() => {});
-}
-
 // Animation frame loop
 let lastFrameTime = 0;
 function frame(now) {
@@ -317,6 +321,5 @@ function frame(now) {
 
 // Initial setup
 game.resetBricks();
-game.startCountdown(CONFIG.game?.countdownSeconds ?? 3);
 requestAnimationFrame(frame);
-postureStatus.textContent = "Click 'Enable posture control' to steer with your body and jump to smash.";
+postureStatus.textContent = "Enable posture control and allow camera access to start; microphone access is optional.";

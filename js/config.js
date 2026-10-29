@@ -59,6 +59,14 @@ export const CONFIG = {
     clutchSaveSlowMotionSeconds: 0.3,
     mysteryBrickCount: 3,
     mysterySmashChargeHits: 3,
+    brickScore: 10,
+    comboBonuses: {
+      3: 10,
+      5: 25,
+      10: 50,
+    },
+    speedIncreaseEveryBricks: 10,
+    speedIncreaseMultiplier: 1.05,
     basePaddleWidth: 120,     // Default paddle width
     paddleHeight: 14,
     ballRadius: 9,

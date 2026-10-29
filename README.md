@@ -2,10 +2,11 @@
 
 ## Automatic game and webcam recording
 
-Enable posture control to record a portrait video with the game at the top and
-the camera with its skeleton overlay at the bottom. Game sound and microphone
-audio are included; the browser asks for microphone permission separately.
-If microphone access is denied or unavailable, recording continues without it.
+Enable posture control and grant camera access to start the game. The browser
+also asks for microphone access before play starts; if microphone access is
+denied, the game records without microphone audio. Recordings are portrait
+video with the game at the top and the camera with its skeleton overlay at the
+bottom. Game sound and, when permitted, microphone audio are included.
 Recording stops when the round ends or posture control is disabled. By default,
 the video and event markers are saved in the browser's local recordings library.
 Open **My recordings** to review them, download individual files, or export all

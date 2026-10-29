@@ -1,5 +1,5 @@
 import { CANVAS_WIDTH, CANVAS_HEIGHT, BRICK_CONFIG, BRICK_COLORS } from "./constants.js?v=12";
-import { CONFIG } from "./config.js?v=15";
+import { CONFIG } from "./config.js?v=16";
 
 export class Game {
   constructor({
@@ -57,11 +57,15 @@ export class Game {
     this.bricks = [];
     this.score = 0;
     this.comboStreak = 0;
+    this.roundNumber = 1;
+    this.bricksCleared = 0;
+    this.speedMultiplier = 1;
     this.gameOver = false;
     this.roundTimeRemaining = CONFIG.game?.roundDurationSeconds ?? 90;
     this.lastDisplayedRoundSecond = null;
     this.autoRestartTimer = 0;
-    this.countdown = CONFIG.game?.countdownSeconds ?? 3;
+    this.countdown = 0;
+    this.waitingForPosture = true;
     this.countdownGoTimer = 0;
     this.countdownBeeped = {};
     this.slowMotionRemaining = 0;
@@ -84,6 +88,10 @@ export class Game {
 
     for (let row = 0; row < BRICK_CONFIG.rows; row += 1) {
       for (let column = 0; column < BRICK_CONFIG.columns; column += 1) {
+        if (this.roundNumber % 2 === 0) {
+          const diamondHalfWidth = Math.max(1, 3 - Math.abs(row - Math.floor(BRICK_CONFIG.rows / 2)));
+          if (Math.abs(column - Math.floor(BRICK_CONFIG.columns / 2)) > diamondHalfWidth) continue;
+        }
         this.bricks.push({
           x: left + column * (BRICK_CONFIG.width + BRICK_CONFIG.gap),
           y: BRICK_CONFIG.top + row * (BRICK_CONFIG.height + BRICK_CONFIG.gap),
@@ -108,6 +116,7 @@ export class Game {
   }
 
   startCountdown(seconds = 3) {
+    this.waitingForPosture = false;
     this.countdown = seconds;
     this.countdownGoTimer = 0;
     this.countdownBeeped = {};
@@ -121,8 +130,25 @@ export class Game {
   }
 
   launchBall() {
-    this.ball.vx = 230 * (Math.random() < 0.5 ? -1 : 1);
-    this.ball.vy = -300;
+    const speedMultiplier = this.getSpeedMultiplier();
+    this.ball.vx = (CONFIG.game?.ballSpeedX ?? 230) * speedMultiplier
+      * (Math.random() < 0.5 ? -1 : 1);
+    this.ball.vy = (CONFIG.game?.ballSpeedY ?? -300) * speedMultiplier;
+  }
+
+  getSpeedMultiplier() {
+    const bricksPerIncrease = CONFIG.game?.speedIncreaseEveryBricks ?? 10;
+    const increase = CONFIG.game?.speedIncreaseMultiplier ?? 1.05;
+    return increase ** Math.floor(this.bricksCleared / bricksPerIncrease);
+  }
+
+  updateBallSpeedForBrickProgress() {
+    const nextMultiplier = this.getSpeedMultiplier();
+    if (nextMultiplier === this.speedMultiplier) return;
+    const scale = nextMultiplier / this.speedMultiplier;
+    this.ball.vx *= scale;
+    this.ball.vy *= scale;
+    this.speedMultiplier = nextMultiplier;
   }
 
   resetBall() {
@@ -130,8 +156,11 @@ export class Game {
   }
 
   startAgain() {
+    this.roundNumber += 1;
     this.score = 0;
     this.comboStreak = 0;
+    this.bricksCleared = 0;
+    this.speedMultiplier = 1;
     this.gameOver = false;
     this.roundTimeRemaining = CONFIG.game?.roundDurationSeconds ?? 90;
     this.lastDisplayedRoundSecond = null;
@@ -187,7 +216,7 @@ export class Game {
     }
   }
 
-  addFloatingText(text, x, y, color = "#ffdd44") {
+  addFloatingText(text, x, y, color = "#ffdd44", fontSize = 20) {
     this.floatingTexts.push({
       text,
       x,
@@ -196,6 +225,7 @@ export class Game {
       life: 0.85,
       maxLife: 0.85,
       color,
+      fontSize,
     });
   }
 
@@ -258,6 +288,8 @@ export class Game {
   }
 
   update(delta) {
+    if (this.waitingForPosture) return;
+
     if (this.gameOver) {
       if (this.autoRestartTimer > 0) {
         this.autoRestartTimer -= delta;
@@ -403,13 +435,14 @@ export class Game {
       && this.ball.x - this.ball.radius <= this.paddle.x + this.paddle.width
     ) {
       const hitPosition = Math.max(-1, Math.min(1, (this.ball.x - (this.paddle.x + this.paddle.width / 2)) / (this.paddle.width / 2)));
-      this.ball.vx = hitPosition * 390;
+      const speedMultiplier = this.getSpeedMultiplier();
+      this.ball.vx = hitPosition * 390 * speedMultiplier;
 
       const isClutchSave = this.ball.x < this.paddle.x
         || this.ball.x > this.paddle.x + this.paddle.width;
       const isJumping = this.paddle.jumpOffset > 8;
       if (isClutchSave && !isJumping) {
-        this.ball.vy = -Math.max(260, Math.abs(this.ball.vy));
+        this.ball.vy = -Math.max(260 * speedMultiplier, Math.abs(this.ball.vy));
         const chargeCap = CONFIG.game?.mysterySmashChargeHits ?? 3;
         const chargeGain = CONFIG.game?.clutchSaveChargeHits ?? 1;
         this.ball.powerHitsRemaining = Math.min(
@@ -430,7 +463,7 @@ export class Game {
       } else if (isJumping) {
         // SMASH HIT!
         const smashMult = CONFIG.jump?.smashSpeedMultiplier ?? 1.35;
-        this.ball.vy = -Math.max(340, Math.abs(this.ball.vy) * smashMult);
+        this.ball.vy = -Math.max(340 * speedMultiplier, Math.abs(this.ball.vy) * smashMult);
         this.ball.isPowerBall = true;
         this.ball.powerHitsRemaining = 3;
         const bonus = CONFIG.jump?.smashBonusPoints ?? 30;
@@ -441,7 +474,7 @@ export class Game {
         this.spawnSmashParticles(this.ball.x, this.paddle.y);
         this.onSmash?.();
       } else {
-        this.ball.vy = -Math.max(260, Math.abs(this.ball.vy));
+        this.ball.vy = -Math.max(260 * speedMultiplier, Math.abs(this.ball.vy));
         this.ball.isPowerBall = false;
         this.audio.playPaddleSound(this.ball, this.paddle);
       }
@@ -458,8 +491,22 @@ export class Game {
         && this.ball.y - this.ball.radius <= brick.y + brick.height
       ) {
         brick.visible = false;
-        this.score += 10;
         this.comboStreak += 1;
+        this.bricksCleared += 1;
+        const brickScore = CONFIG.game?.brickScore ?? 10;
+        this.score += brickScore;
+        const comboBonus = CONFIG.game?.comboBonuses?.[this.comboStreak] ?? 0;
+        if (comboBonus > 0) {
+          this.score += comboBonus;
+          this.addFloatingText(
+            `COMBO x${this.comboStreak} +${comboBonus}`,
+            brick.x + brick.width / 2,
+            brick.y,
+            "#ffdd44",
+            28,
+          );
+        }
+        this.updateBallSpeedForBrickProgress();
         this.onScoreChange?.(this.score);
         this.audio.playBrickSound(brick, this.comboStreak, this.width);
 
@@ -647,7 +694,7 @@ export class Game {
       const alpha = Math.max(0, ft.life / ft.maxLife);
       this.ctx.save();
       this.ctx.globalAlpha = alpha;
-      this.ctx.font = "900 20px system-ui, sans-serif";
+      this.ctx.font = `900 ${ft.fontSize ?? 20}px system-ui, sans-serif`;
       this.ctx.textAlign = "center";
       this.ctx.fillStyle = ft.color;
       this.ctx.shadowColor = ft.color;
