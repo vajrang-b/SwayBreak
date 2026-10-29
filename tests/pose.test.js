@@ -1,6 +1,7 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { PoseTracker } from "../js/pose.js";
+import { FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
 import { CONFIG } from "../js/config.js";
 import { createMockElement, createMockCanvasContext, createMockMediaStream } from "./mocks/browser-env.js";
 
@@ -66,6 +67,26 @@ describe("pose.js - PoseTracker", () => {
       assert.strictEqual(tracker.poseBackend, "CPU");
       assert.strictEqual(tracker.droppedFrames, 0);
       assert.strictEqual(tracker.lastTrackedTorsoX, null);
+    });
+
+    it("retries loading the pose model after a failed attempt", async () => {
+      const originalResolver = FilesetResolver.forVisionTasks;
+      let attempts = 0;
+      FilesetResolver.forVisionTasks = async () => {
+        attempts += 1;
+        if (attempts === 1) throw new Error("offline");
+        return { path: "mock" };
+      };
+
+      try {
+        await assert.rejects(tracker.getPoseLandmarker(), /offline/);
+        assert.strictEqual(tracker.poseModelLoadingPromise, null);
+        await tracker.getPoseLandmarker();
+        assert.strictEqual(attempts, 2);
+        assert.ok(tracker.poseLandmarker);
+      } finally {
+        FilesetResolver.forVisionTasks = originalResolver;
+      }
     });
   });
 
@@ -266,6 +287,36 @@ describe("pose.js - PoseTracker", () => {
       // Baseline should have auto-recalibrated to the new standing level (~0.5)
       assert.ok(Math.abs(tracker.torsoYBaseline - 0.5) < 0.05);
       assert.strictEqual(tracker.jumpGrounded, true);
+    });
+
+    it("handles countermovement squat dip before a jump without collapsing baseline", () => {
+      const createPoseAtY = (y) => {
+        const lm = Array.from({ length: 33 }, () => ({ x: 0.5, y, visibility: 0.9 }));
+        lm[11] = { x: 0.45, y, visibility: 0.9 };
+        lm[12] = { x: 0.55, y, visibility: 0.9 };
+        lm[23] = { x: 0.45, y: y + 0.2, visibility: 0.9 };
+        lm[24] = { x: 0.55, y: y + 0.2, visibility: 0.9 };
+        return lm;
+      };
+
+      let currentPose = createPoseAtY(0.5);
+      tracker.poseLandmarker = {
+        detectForVideo: () => ({ landmarks: [currentPose] }),
+      };
+
+      tracker.update(1000, 120);
+      assert.strictEqual(jumpTriggeredCount, 0);
+
+      // Squat dip down: y moves down to 0.55
+      currentPose = createPoseAtY(0.55);
+      tracker.update(1080, 120);
+      assert.strictEqual(jumpTriggeredCount, 0);
+
+      // Explosive upward jump: y leaps to 0.35
+      currentPose = createPoseAtY(0.35);
+      tracker.update(1160, 120);
+
+      assert.strictEqual(jumpTriggeredCount, 1);
     });
 
     it("warns about no person detected after debounce threshold", () => {

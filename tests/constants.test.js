@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import {
   CANVAS_WIDTH,
   CANVAS_HEIGHT,
+  PORTRAIT_CANVAS_WIDTH,
+  PORTRAIT_CANVAS_HEIGHT,
   BRICK_CONFIG,
+  PORTRAIT_BRICK_CONFIG,
   BRICK_COLORS,
   FACE_CONNECTIONS,
   TORSO_CONNECTIONS,
@@ -17,6 +20,8 @@ describe("constants.js", () => {
   it("defines standard canvas dimensions", () => {
     assert.strictEqual(CANVAS_WIDTH, 960);
     assert.strictEqual(CANVAS_HEIGHT, 600);
+    assert.strictEqual(PORTRAIT_CANVAS_WIDTH, 600);
+    assert.strictEqual(PORTRAIT_CANVAS_HEIGHT, 960);
   });
 
   it("defines brick configuration accurately", () => {
@@ -26,6 +31,13 @@ describe("constants.js", () => {
     assert.strictEqual(BRICK_CONFIG.height, 24);
     assert.strictEqual(BRICK_CONFIG.gap, 12);
     assert.strictEqual(BRICK_CONFIG.top, 62);
+
+    assert.strictEqual(PORTRAIT_BRICK_CONFIG.columns, 6);
+    assert.strictEqual(PORTRAIT_BRICK_CONFIG.rows, 6);
+    assert.strictEqual(PORTRAIT_BRICK_CONFIG.width, 86);
+    assert.strictEqual(PORTRAIT_BRICK_CONFIG.height, 24);
+    assert.strictEqual(PORTRAIT_BRICK_CONFIG.gap, 10);
+    assert.strictEqual(PORTRAIT_BRICK_CONFIG.top, 80);
   });
 
   it("defines brick colors with matching row count", () => {
@@ -112,3 +124,4 @@ describe("constants.js", () => {
     });
   });
 });
+

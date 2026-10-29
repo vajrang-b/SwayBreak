@@ -1,10 +1,19 @@
-import { CANVAS_WIDTH, CANVAS_HEIGHT, BRICK_CONFIG, BRICK_COLORS } from "./constants.js?v=12";
-import { CONFIG } from "./config.js?v=16";
+import {
+  CANVAS_WIDTH,
+  CANVAS_HEIGHT,
+  PORTRAIT_CANVAS_WIDTH,
+  PORTRAIT_CANVAS_HEIGHT,
+  BRICK_CONFIG,
+  PORTRAIT_BRICK_CONFIG,
+  BRICK_COLORS,
+} from "./constants.js?v=13";
+import { CONFIG } from "./config.js?v=17";
 
 export class Game {
   constructor({
     canvas,
     audio,
+    orientation = "landscape",
     onScoreChange,
     onRoundTimeChange,
     onLevelAdvance,
@@ -14,8 +23,10 @@ export class Game {
     onSmash,
   }) {
     this.canvas = canvas;
-    this.ctx = canvas.getContext("2d");
+    this.ctx = canvas?.getContext?.("2d") ?? null;
+    this.arMode = false;
     this.audio = audio;
+    this.orientation = orientation;
     this.onScoreChange = onScoreChange;
     this.onRoundTimeChange = onRoundTimeChange;
     this.onLevelAdvance = onLevelAdvance;
@@ -24,17 +35,29 @@ export class Game {
     this.onClutchSave = onClutchSave;
     this.onSmash = onSmash;
 
-    this.width = CANVAS_WIDTH;
-    this.height = CANVAS_HEIGHT;
+    const isPortrait = this.orientation === "portrait";
+    this.width = isPortrait ? PORTRAIT_CANVAS_WIDTH : CANVAS_WIDTH;
+    this.height = isPortrait ? PORTRAIT_CANVAS_HEIGHT : CANVAS_HEIGHT;
 
-    this.basePaddleWidth = CONFIG.game?.basePaddleWidth ?? 120;
+    if (this.canvas) {
+      this.canvas.width = this.width;
+      this.canvas.height = this.height;
+    }
+
+    this.basePaddleWidth = isPortrait
+      ? (CONFIG.game?.basePaddleWidthMobile ?? 150)
+      : (CONFIG.game?.basePaddleWidth ?? 200);
     this.maxArmExtension = CONFIG.armExtension?.maxExtensionPerSide ?? 75;
-    this.basePaddleY = this.height - 42;
+    this.basePaddleY = this.height - (isPortrait ? 48 : 42);
+    const paddleH = isPortrait
+      ? (CONFIG.game?.paddleHeightMobile ?? 18)
+      : (CONFIG.game?.paddleHeight ?? 20);
+
     this.paddle = {
       x: this.width / 2 - this.basePaddleWidth / 2,
       y: this.basePaddleY,
       width: this.basePaddleWidth,
-      height: CONFIG.game?.paddleHeight ?? 14,
+      height: paddleH,
       leftExtend: 0,
       rightExtend: 0,
       jumpOffset: 0,
@@ -75,6 +98,11 @@ export class Game {
     this.countdownBeeped = {};
     this.slowMotionRemaining = 0;
     this.clutchFlashTimer = 0;
+    this.clutchCooldown = 0;
+    this.jumpsCount = 0;
+    this.clutchSavesCount = 0;
+    this.smashesCount = 0;
+    this.totalBricksCleared = 0;
     this.updateRoundTimeDisplay();
   }
 
@@ -85,24 +113,72 @@ export class Game {
     this.onRoundTimeChange?.(displayedSeconds);
   }
 
+  setARMode(enabled) {
+    this.arMode = Boolean(enabled);
+  }
+
+  updateDimensionsForOrientation() {
+    const isPortrait = this.orientation === "portrait";
+    this.width = isPortrait ? PORTRAIT_CANVAS_WIDTH : CANVAS_WIDTH;
+    this.height = isPortrait ? PORTRAIT_CANVAS_HEIGHT : CANVAS_HEIGHT;
+
+    if (this.canvas) {
+      this.canvas.width = this.width;
+      this.canvas.height = this.height;
+    }
+
+    this.basePaddleWidth = isPortrait
+      ? (CONFIG.game?.basePaddleWidthMobile ?? 150)
+      : (CONFIG.game?.basePaddleWidth ?? 200);
+    this.basePaddleY = this.height - (isPortrait ? 48 : 42);
+    const paddleH = isPortrait
+      ? (CONFIG.game?.paddleHeightMobile ?? 18)
+      : (CONFIG.game?.paddleHeight ?? 20);
+
+    if (this.paddle) {
+      this.paddle.y = this.basePaddleY;
+      this.paddle.height = paddleH;
+      this.paddle.width = this.basePaddleWidth + (this.paddle.leftExtend || 0) + (this.paddle.rightExtend || 0);
+      this.paddle.x = Math.max(0, Math.min(this.width - this.paddle.width, this.paddle.x));
+    }
+  }
+
+  setOrientation(orientation) {
+    if (this.orientation === orientation) return;
+    this.orientation = orientation;
+    this.updateDimensionsForOrientation();
+    this.resetBricks();
+    this.paddle.x = this.width / 2 - this.basePaddleWidth / 2;
+    this.paddle.y = this.basePaddleY;
+    this.targetCenterX = this.width / 2;
+    if (this.waitingForPosture || this.countdown > 0) {
+      this.ball.x = this.paddle.x + this.paddle.width / 2;
+      this.ball.y = this.paddle.y - this.ball.radius - 2;
+    }
+  }
+
   resetBricks() {
     this.bricks = [];
-    const totalWidth = BRICK_CONFIG.columns * BRICK_CONFIG.width
-      + (BRICK_CONFIG.columns - 1) * BRICK_CONFIG.gap;
+    const isPortrait = this.orientation === "portrait";
+    const cfg = isPortrait ? PORTRAIT_BRICK_CONFIG : BRICK_CONFIG;
+    const totalWidth = cfg.columns * cfg.width
+      + (cfg.columns - 1) * cfg.gap;
     const left = (this.width - totalWidth) / 2;
 
-    for (let row = 0; row < BRICK_CONFIG.rows; row += 1) {
-      for (let column = 0; column < BRICK_CONFIG.columns; column += 1) {
+    for (let row = 0; row < cfg.rows; row += 1) {
+      for (let column = 0; column < cfg.columns; column += 1) {
         if (this.roundNumber % 2 === 0) {
-          const diamondHalfWidth = Math.max(1, 3 - Math.abs(row - Math.floor(BRICK_CONFIG.rows / 2)));
-          if (Math.abs(column - Math.floor(BRICK_CONFIG.columns / 2)) > diamondHalfWidth) continue;
+          const midRow = Math.floor(cfg.rows / 2);
+          const midCol = Math.floor(cfg.columns / 2);
+          const diamondHalfWidth = Math.max(1, Math.floor(cfg.columns / 2) - Math.abs(row - midRow));
+          if (Math.abs(column - midCol) > diamondHalfWidth) continue;
         }
         this.bricks.push({
-          x: left + column * (BRICK_CONFIG.width + BRICK_CONFIG.gap),
-          y: BRICK_CONFIG.top + row * (BRICK_CONFIG.height + BRICK_CONFIG.gap),
-          width: BRICK_CONFIG.width,
-          height: BRICK_CONFIG.height,
-          color: BRICK_COLORS[row],
+          x: left + column * (cfg.width + cfg.gap),
+          y: cfg.top + row * (cfg.height + cfg.gap),
+          width: cfg.width,
+          height: cfg.height,
+          color: BRICK_COLORS[row % BRICK_COLORS.length],
           row,
           visible: true,
           mystery: false,
@@ -146,7 +222,8 @@ export class Game {
   getSpeedMultiplier() {
     const bricksPerIncrease = CONFIG.game?.speedIncreaseEveryBricks ?? 10;
     const increase = CONFIG.game?.speedIncreaseMultiplier ?? 1.05;
-    return increase ** Math.floor(this.bricksCleared / bricksPerIncrease);
+    const levelBonus = 1 + (this.roundNumber - 1) * 0.05;
+    return (increase ** Math.floor(this.bricksCleared / bricksPerIncrease)) * levelBonus;
   }
 
   updateBallSpeedForBrickProgress() {
@@ -173,25 +250,32 @@ export class Game {
       startX,
       startY,
       elapsed: 0,
-      explosionDuration: 0.3,
-      duration: 0.62,
+      explosionDuration: 0.2,
+      duration: 0.45,
       returnSoundPlayed: false,
     };
     this.explosionEffect = {
       x: startX,
       y: this.height - 12,
       elapsed: 0,
-      duration: 0.42,
+      duration: 0.35,
     };
     this.spawnExplosionParticles(startX, this.height - 12);
     this.audio.playMissSound();
   }
 
-  startAgain() {
-    this.roundNumber += 1;
+  startAgain({ resetLevel = false } = {}) {
+    this.roundNumber = resetLevel ? 1 : this.roundNumber + 1;
     this.score = 0;
     this.comboStreak = 0;
     this.bricksCleared = 0;
+    if (resetLevel) {
+      this.jumpsCount = 0;
+      this.clutchSavesCount = 0;
+      this.smashesCount = 0;
+      this.totalBricksCleared = 0;
+    }
+    this.clutchCooldown = 0;
     this.speedMultiplier = 1;
     this.gameOver = false;
     this.roundTimeRemaining = CONFIG.game?.roundDurationSeconds ?? 90;
@@ -223,10 +307,58 @@ export class Game {
     this.onGameRestart?.();
   }
 
+  stopPlaying() {
+    this.waitingForPosture = true;
+    this.countdown = 0;
+    this.countdownGoTimer = 0;
+    this.countdownBeeped = {};
+    this.ballReturn = null;
+    this.explosionEffect = null;
+    this.particles = [];
+    this.floatingTexts = [];
+    this.ball.isPowerBall = false;
+    this.ball.powerHitsRemaining = 0;
+    this.ball.trail = [];
+    this.ball.vx = 0;
+    this.ball.vy = 0;
+    this.paddle.leftExtend = 0;
+    this.paddle.rightExtend = 0;
+    this.paddle.jumpOffset = 0;
+    this.jumpTimer = 0;
+    this.slowMotionRemaining = 0;
+    this.clutchFlashTimer = 0;
+    this.clutchCooldown = 0;
+    this.targetLeftExtend = 0;
+    this.targetRightExtend = 0;
+    this.paddle.width = this.basePaddleWidth;
+    this.paddle.x = this.width / 2 - this.basePaddleWidth / 2;
+    this.paddle.y = this.basePaddleY;
+    this.targetCenterX = this.width / 2;
+    this.ball.x = this.paddle.x + this.paddle.width / 2;
+    this.ball.y = this.paddle.y - this.ball.radius - 2;
+    this.gameOver = false;
+    this.autoRestartTimer = 0;
+    this.score = 0;
+    this.comboStreak = 0;
+    this.roundNumber = 1;
+    this.bricksCleared = 0;
+    this.totalBricksCleared = 0;
+    this.jumpsCount = 0;
+    this.clutchSavesCount = 0;
+    this.smashesCount = 0;
+    this.speedMultiplier = 1;
+    this.roundTimeRemaining = CONFIG.game?.roundDurationSeconds ?? 90;
+    this.lastDisplayedRoundSecond = null;
+    this.resetBricks();
+    this.onScoreChange?.(0);
+    this.updateRoundTimeDisplay();
+  }
+
   advanceLevel() {
     this.roundNumber += 1;
     this.bricksCleared = 0;
-    this.speedMultiplier = 1;
+    this.speedMultiplier = this.getSpeedMultiplier();
+    this.clutchCooldown = 0;
     this.ballReturn = null;
     this.explosionEffect = null;
     this.particles = [];
@@ -244,6 +376,7 @@ export class Game {
     const jumpCfg = CONFIG.jump;
     if (!jumpCfg?.enabled) return;
 
+    this.jumpsCount += 1;
     this.totalJumpDuration = jumpCfg.jumpDurationSec ?? 0.42;
     this.jumpTimer = this.totalJumpDuration;
     this.audio.playJumpWhooshSound?.();
@@ -375,6 +508,7 @@ export class Game {
       delta -= slowedDuration * 0.5;
     }
     this.clutchFlashTimer = Math.max(0, this.clutchFlashTimer - realDelta);
+    this.clutchCooldown = Math.max(0, this.clutchCooldown - realDelta);
 
     // Smooth paddle positioning and arm extensions
     const posAmount = 1 - Math.exp(-delta * 18);
@@ -456,7 +590,7 @@ export class Game {
 
       if (progress >= 1) {
         this.ballReturn = null;
-        this.startCountdown(2);
+        this.startCountdown(1, "READY!");
         this.audio.playBallCatchSound?.();
       }
       return;
@@ -540,31 +674,42 @@ export class Game {
       const speedMultiplier = this.getSpeedMultiplier();
       this.ball.vx = hitPosition * 390 * speedMultiplier;
 
-      const isClutchSave = this.ball.x < this.paddle.x
-        || this.ball.x > this.paddle.x + this.paddle.width;
+      const paddleCoreLeft = this.paddle.x + this.paddle.leftExtend;
+      const paddleCoreRight = paddleCoreLeft + this.basePaddleWidth;
+      const isClutchSave = (this.paddle.leftExtend > 5 && this.ball.x < paddleCoreLeft)
+        || (this.paddle.rightExtend > 5 && this.ball.x > paddleCoreRight);
       const isJumping = this.paddle.jumpOffset > 8;
       if (isClutchSave && !isJumping) {
-        this.ball.vy = -Math.max(260 * speedMultiplier, Math.abs(this.ball.vy));
-        const chargeCap = CONFIG.game?.mysterySmashChargeHits ?? 3;
-        const chargeGain = CONFIG.game?.clutchSaveChargeHits ?? 1;
-        this.ball.powerHitsRemaining = Math.min(
-          chargeCap,
-          (this.ball.isPowerBall ? this.ball.powerHitsRemaining : 0) + chargeGain,
-        );
-        this.ball.isPowerBall = this.ball.powerHitsRemaining > 0;
+        if (this.clutchCooldown <= 0) {
+          this.clutchCooldown = CONFIG.armExtension?.clutchCooldownSec ?? 0.8;
+          this.clutchSavesCount += 1;
+          this.ball.vy = -Math.max(260 * speedMultiplier, Math.abs(this.ball.vy));
+          const chargeCap = CONFIG.game?.mysterySmashChargeHits ?? 3;
+          const chargeGain = CONFIG.game?.clutchSaveChargeHits ?? 1;
+          this.ball.powerHitsRemaining = Math.min(
+            chargeCap,
+            (this.ball.isPowerBall ? this.ball.powerHitsRemaining : 0) + chargeGain,
+          );
+          this.ball.isPowerBall = this.ball.powerHitsRemaining > 0;
 
-        const bonus = CONFIG.game?.clutchSaveBonusPoints ?? 10;
-        this.score += bonus;
-        this.onScoreChange?.(this.score);
-        this.addFloatingText(`CLUTCH SAVE +${bonus}`, this.ball.x, this.paddle.y - 25, "#ffdd44");
-        this.slowMotionRemaining = CONFIG.game?.clutchSaveSlowMotionSeconds ?? 0.3;
-        this.clutchFlashTimer = this.slowMotionRemaining;
-        this.audio.playClutchSaveSound?.(((this.ball.x / this.width) * 1.5) - 0.75);
-        this.spawnClutchParticles(this.ball.x, this.paddle.y);
-        this.onClutchSave?.();
+          const bonus = CONFIG.game?.clutchSaveBonusPoints ?? 10;
+          this.score += bonus;
+          this.onScoreChange?.(this.score);
+          this.addFloatingText(`CLUTCH SAVE +${bonus}`, this.ball.x, this.paddle.y - 25, "#ffdd44");
+          this.slowMotionRemaining = CONFIG.game?.clutchSaveSlowMotionSeconds ?? 0.3;
+          this.clutchFlashTimer = this.slowMotionRemaining;
+          this.audio.playClutchSaveSound?.(((this.ball.x / this.width) * 1.5) - 0.75);
+          this.spawnClutchParticles(this.ball.x, this.paddle.y);
+          this.onClutchSave?.();
+        } else {
+          // Bounced off wing during cooldown without slow-mo / bonus spam
+          this.ball.vy = -Math.max(260 * speedMultiplier, Math.abs(this.ball.vy));
+          this.audio.playPaddleSound(this.ball, this.paddle);
+        }
       } else if (isJumping) {
         // SMASH HIT!
-        const smashMult = CONFIG.jump?.smashSpeedMultiplier ?? 1.35;
+        this.smashesCount += 1;
+        const smashMult = CONFIG.jump?.smashSpeedMultiplier ?? 1.20;
         this.ball.vy = -Math.max(340 * speedMultiplier, Math.abs(this.ball.vy) * smashMult);
         this.ball.isPowerBall = true;
         this.ball.powerHitsRemaining = 3;
@@ -581,6 +726,9 @@ export class Game {
         this.audio.playPaddleSound(this.ball, this.paddle);
       }
       this.ball.y = this.paddle.y - this.ball.radius;
+      if (Math.abs(this.ball.vy) < 70) {
+        this.ball.vy = (this.ball.vy < 0 ? -1 : 1) * 70;
+      }
     }
 
     // Brick Collisions
@@ -595,6 +743,7 @@ export class Game {
         brick.visible = false;
         this.comboStreak += 1;
         this.bricksCleared += 1;
+        this.totalBricksCleared += 1;
         const brickScore = CONFIG.game?.brickScore ?? 10;
         this.score += brickScore;
         const comboBonus = CONFIG.game?.comboBonuses?.[this.comboStreak] ?? 0;
@@ -629,7 +778,18 @@ export class Game {
             this.ball.isPowerBall = false;
           }
         } else {
-          this.ball.vy *= -1;
+          const overlapX = Math.min(this.ball.x + this.ball.radius, brick.x + brick.width)
+            - Math.max(this.ball.x - this.ball.radius, brick.x);
+          const overlapY = Math.min(this.ball.y + this.ball.radius, brick.y + brick.height)
+            - Math.max(this.ball.y - this.ball.radius, brick.y);
+          if (overlapX < overlapY) {
+            this.ball.vx *= -1;
+          } else {
+            this.ball.vy *= -1;
+            if (this.ball.vy !== 0 && Math.abs(this.ball.vy) < 60) {
+              this.ball.vy = (this.ball.vy < 0 ? -1 : 1) * 60;
+            }
+          }
           this.ball.isPowerBall = false;
           break;
         }
@@ -648,8 +808,10 @@ export class Game {
 
   draw() {
     this.ctx.clearRect(0, 0, this.width, this.height);
-    this.ctx.fillStyle = "#171f31";
-    this.ctx.fillRect(0, 0, this.width, this.height);
+    if (!this.arMode) {
+      this.ctx.fillStyle = "#171f31";
+      this.ctx.fillRect(0, 0, this.width, this.height);
+    }
     const now = performance.now();
 
     for (const brick of this.bricks) {
@@ -928,5 +1090,20 @@ export class Game {
     const channels = [16, 8, 0].map((shift) => (value >> shift) & 0xff);
     const lighter = channels.map((channel) => Math.round(channel + (255 - channel) * 0.28));
     return `#${lighter.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
+  }
+
+  getWorkoutStats() {
+    const roundDuration = CONFIG.game?.roundDurationSeconds ?? 90;
+    const activeSeconds = Math.max(0, Math.round(roundDuration - this.roundTimeRemaining));
+    const calories = Math.round((activeSeconds * 0.07 + this.jumpsCount * 0.35 + this.clutchSavesCount * 0.08) * 10) / 10;
+    return {
+      score: this.score,
+      jumps: this.jumpsCount,
+      smashes: this.smashesCount,
+      clutchSaves: this.clutchSavesCount,
+      bricks: this.totalBricksCleared || this.bricksCleared,
+      activeSeconds,
+      calories,
+    };
   }
 }

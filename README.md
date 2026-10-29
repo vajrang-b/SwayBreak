@@ -4,9 +4,10 @@
 
 Enable posture control and grant camera access to start the game. The browser
 also asks for microphone access before play starts; if microphone access is
-denied, the game records without microphone audio. Recordings are portrait
-video with the game at the top and the camera with its skeleton overlay at the
-bottom. Game sound and, when permitted, microphone audio are included.
+denied, the game records without microphone audio. Recordings match your actual gameplay view (landscape on laptop, portrait on
+mobile). In AR mode, the live mirrored camera background is composited behind the
+game field and audio, capturing exactly what you saw while playing. In standard mode,
+a picture-in-picture preview of your posture skeleton is recorded.
 Recording stops when the round ends or posture control is disabled. By default,
 the video and event markers are saved in the browser's local recordings library.
 Open **My recordings** to review them, download individual files, or export all
@@ -16,6 +17,15 @@ recordings page; the **Save video** button remains available for the latest
 recording. Recordings are stored only in this browser on this device, not
 uploaded, and may be removed if site data is cleared. Microphone capture stops
 when posture control is disabled.
+
+When posture control is active, **Camera background (AR)** places the live
+camera behind the transparent game field so bricks and game effects appear
+over the camera view. Turn it off to return to the standard game background.
+
+Use **⛶ Full screen** (or press **F**) to expand the AR camera view to fill your entire
+display or TV for an immersive exergame workout. When posture play begins, the game
+automatically transitions to full screen so you can immediately step back and play.
+Press **Esc** or click **✕ Exit full screen** at any time to return to windowed mode.
 
 Clearing all bricks advances to the next level after a five-second countdown.
 Your score, round timer, and video recording continue across successful levels.
@@ -87,3 +97,13 @@ that the network permits device-to-device connections, and that the server's
 firewall permits inbound TCP connections on port `8443`. The server binds to
 all network interfaces, so only run it on a trusted network. Stop it with
 `Ctrl+C`. The LAN IP can change when the computer reconnects to the network.
+
+## Running Unit Tests
+
+Unit tests use Node.js's built-in test runner (`node:test` and `node:assert/strict`) with browser environment mocks for Web Audio, MediaRecorder, IndexedDB, MediaPipe Vision, and HTML5 Canvas.
+
+Run the complete test suite:
+
+```sh
+npm test
+```

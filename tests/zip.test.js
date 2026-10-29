@@ -112,3 +112,4 @@ describe("zip.js - createZipBlob", () => {
     assert.strictEqual(view.getUint32(0, true), 0x06054b50);
   });
 });
+

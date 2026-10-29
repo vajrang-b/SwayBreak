@@ -1,6 +1,6 @@
 import { FilesetResolver, PoseLandmarker } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
 import { getActiveConnections } from "./constants.js?v=12";
-import { CONFIG } from "./config.js?v=13";
+import { CONFIG } from "./config.js?v=17";
 
 export class PoseTracker {
   constructor({
@@ -234,6 +234,12 @@ export class PoseTracker {
     return candidates[0] ?? null;
   }
 
+  setCanvasWidth(width) {
+    if (typeof width === "number" && width > 0) {
+      this.canvasWidth = width;
+    }
+  }
+
   update(now, paddleWidth) {
     if (!this.postureEnabled || this.video.readyState < 2 || this.video.paused || this.video.ended) {
       return;
@@ -283,11 +289,12 @@ export class PoseTracker {
               this.jumpGrounded = true;
               this.elevatedTimer = 0;
               if (upwardPixels < -8) {
-                // Player moved lower or lid tilted back: adapt quickly to lower position
-                this.torsoYBaseline = this.torsoYBaseline * 0.82 + torsoY * 0.18;
+                // Player moved lower (e.g. crouching before a jump or laptop lid tilted back):
+                // adapt steadily so natural countermovement jump squats do not collapse the baseline
+                this.torsoYBaseline = this.torsoYBaseline * 0.94 + torsoY * 0.06;
               } else {
                 // Normal resting baseline adaptation
-                this.torsoYBaseline = this.torsoYBaseline * 0.95 + torsoY * 0.05;
+                this.torsoYBaseline = this.torsoYBaseline * 0.97 + torsoY * 0.03;
               }
             } else {
               // Player is elevated above baseline
@@ -352,18 +359,25 @@ export class PoseTracker {
           this.rightExtensionRatio = rightExt;
 
           const mirroredX = 1 - torsoX;
-          const movementRange = Math.max(0, Math.min(1, (mirroredX - 0.15) / 0.70));
+          const leanSpan = CONFIG.tracking?.leanSensitivity ?? 0.36;
+          const minBound = 0.5 - leanSpan / 2;
+          const movementRange = Math.max(0, Math.min(1, (mirroredX - minBound) / leanSpan));
           const targetX = movementRange * (this.canvasWidth - paddleWidth);
           this.setTargetPaddleX(targetX, leftExt, rightExt);
 
-          const statusMsg = "Tracking body — lean to steer, extend arms to widen, JUMP to smash!";
-          if (this.postureStatus.textContent !== statusMsg) {
-            this.postureStatus.textContent = statusMsg;
+          const hasShoulders = Boolean(landmarks[11] && landmarks[12]);
+          if (!hasShoulders) {
+            const closeMsg = "Stand back so your shoulders show in camera";
+            if (this.postureStatus.textContent !== closeMsg) {
+              this.postureStatus.textContent = closeMsg;
+            }
+            this.postureStatus.hidden = false;
+          } else {
+            this.postureStatus.hidden = true;
           }
-          this.postureStatus.hidden = true;
         } else {
           this.droppedFrames += 1;
-          const maxDropped = CONFIG.tracking?.droppedFramesDebounce ?? 4;
+          const maxDropped = CONFIG.tracking?.droppedFramesDebounce ?? 8;
           if (this.droppedFrames >= maxDropped) {
             this.lastLandmarks = null;
             this.leftExtensionRatio = 0;
@@ -391,18 +405,38 @@ export class PoseTracker {
       const vision = await FilesetResolver.forVisionTasks(
         "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm",
       );
-      const baseOptions = {
-        modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
-        delegate: "CPU",
-      };
+      const modelAssetPath = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task";
+
+      // Attempt hardware GPU acceleration first for smooth 60 FPS performance
+      try {
+        this.poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath,
+            delegate: "GPU",
+          },
+          runningMode: "VIDEO",
+          numPoses: 1,
+        });
+        this.poseBackend = "GPU";
+        return this.poseLandmarker;
+      } catch (gpuErr) {
+        console.warn("GPU delegate unavailable, falling back to CPU:", gpuErr);
+      }
+
       this.poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
-        baseOptions,
+        baseOptions: {
+          modelAssetPath,
+          delegate: "CPU",
+        },
         runningMode: "VIDEO",
         numPoses: 1,
       });
       this.poseBackend = "CPU";
       return this.poseLandmarker;
-    })();
+    })().catch((error) => {
+      this.poseModelLoadingPromise = null;
+      throw error;
+    });
 
     return this.poseModelLoadingPromise;
   }

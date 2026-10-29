@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#101522">
     <title>SwayBreak</title>
-    <link rel="stylesheet" href="css/styles.css?v=21">
+    <link rel="stylesheet" href="css/styles.css?v=25">
   </head>
   <body>
     <main>
@@ -28,8 +28,15 @@
 
       <div class="controls">
         <div class="buttons-row">
-          <button id="posture-button" class="primary-button" type="button">Start playing</button>
+          <button id="posture-button" class="primary-button awaiting-start" type="button">Start playing</button>
           <button id="sound-button" class="secondary-button" type="button" aria-label="Mute sound" aria-pressed="true">Sound: On</button>
+          <label class="secondary-button ar-mode-control">
+            <input id="ar-mode-toggle" type="checkbox" disabled>
+            <span>Camera background (AR)</span>
+          </label>
+          <button id="fullscreen-button" class="secondary-button" type="button" aria-label="Toggle full screen" aria-pressed="false">
+            <span class="fs-label">⛶ Full screen</span>
+          </button>
           <details class="more-menu">
             <summary class="secondary-button menu-trigger">
               <span aria-hidden="true">☰</span>
@@ -53,7 +60,13 @@
 
       <p id="challenge-status" class="challenge-banner" role="status" hidden></p>
       <section class="game-wrap" aria-label="Brick breaker game">
+        <video id="camera" playsinline muted hidden aria-hidden="true"></video>
+        <canvas class="camera" id="pose-preview" width="240" height="180" aria-label="Camera preview with pose tracking" hidden></canvas>
         <canvas id="game" width="960" height="600" aria-label="Game field"></canvas>
+        <button id="floating-fullscreen-btn" class="game-fullscreen-btn" type="button" aria-label="Toggle full screen" title="Toggle full screen (F)">
+          <span class="fs-icon-enter" aria-hidden="true">⛶</span>
+          <span class="fs-icon-exit" aria-hidden="true">✕</span>
+        </button>
         <div class="overlay" id="overlay" hidden>
           <div class="overlay-card">
             <h2 id="overlay-title"></h2>
@@ -69,13 +82,16 @@
           <span class="camera-guide-icon">◎</span>
           <span>Stand back so your shoulders show</span>
         </div>
-        <canvas class="camera" id="pose-preview" width="240" height="180" aria-label="Camera preview with pose tracking" hidden></canvas>
       </div>
-      <p class="help">Lean to move <span aria-hidden="true">·</span> Reach out to widen <span aria-hidden="true">·</span> Jump to smash</p>
+      <p class="help">
+        <span>↔ Lean to move</span>
+        <span aria-hidden="true">·</span>
+        <span>👐 Reach to widen</span>
+        <span aria-hidden="true">·</span>
+        <span>⚡ Jump to smash</span>
+      </p>
     </main>
 
-    <video id="camera" playsinline muted hidden></video>
-
-    <script type="module" src="js/main.js?v=30"></script>
+    <script type="module" src="js/main.js?v=35"></script>
   </body>
 </html>

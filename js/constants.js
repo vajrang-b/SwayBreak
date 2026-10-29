@@ -1,6 +1,9 @@
 export const CANVAS_WIDTH = 960;
 export const CANVAS_HEIGHT = 600;
 
+export const PORTRAIT_CANVAS_WIDTH = 600;
+export const PORTRAIT_CANVAS_HEIGHT = 960;
+
 export const BRICK_CONFIG = {
   columns: 9,
   rows: 5,
@@ -8,6 +11,15 @@ export const BRICK_CONFIG = {
   height: 24,
   gap: 12,
   top: 62,
+};
+
+export const PORTRAIT_BRICK_CONFIG = {
+  columns: 6,
+  rows: 6,
+  width: 86,
+  height: 24,
+  gap: 10,
+  top: 80,
 };
 
 export const BRICK_COLORS = [

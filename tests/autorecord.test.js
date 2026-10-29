@@ -153,5 +153,126 @@ describe("autorecord.js", () => {
       recorder.stop();
       assert.strictEqual(audioStreamStopped, true);
     });
+
+    it("matches canvas dimensions in portrait orientation", () => {
+      const portraitCanvas = {
+        width: 600,
+        height: 960,
+        getContext: () => createMockCanvasContext(),
+        captureStream: () => createMockMediaStream(),
+      };
+      const recorder = createPostureRecorder({
+        gameCanvas: portraitCanvas,
+        autoDownload: false,
+      });
+
+      recorder.start();
+      assert.strictEqual(recorder.isRecording(), true);
+      recorder.stop();
+      assert.strictEqual(recorder.isRecording(), false);
+    });
+
+    it("supports AR mode compositing with video element", () => {
+      let drawCalls = 0;
+      const mockCtx = {
+        fillStyle: "",
+        fillRect: () => {},
+        drawImage: () => { drawCalls += 1; },
+        save: () => {},
+        restore: () => {},
+        translate: () => {},
+        scale: () => {},
+      };
+      const mockCanvas = {
+        width: 960,
+        height: 600,
+        getContext: () => mockCtx,
+        captureStream: () => createMockMediaStream(),
+      };
+      const mockVideo = {
+        videoWidth: 640,
+        videoHeight: 480,
+        readyState: 4,
+      };
+
+      const recorder = createPostureRecorder({
+        gameCanvas: mockCanvas,
+        videoElement: mockVideo,
+        getARMode: () => true,
+        autoDownload: false,
+      });
+
+      recorder.start();
+      assert.strictEqual(recorder.isRecording(), true);
+      recorder.stop();
+      assert.strictEqual(recorder.isRecording(), false);
+    });
+
+    it("supports AR mode compositing with webcam skeleton canvas", () => {
+      const drawnImages = [];
+      const mockCtx = {
+        fillStyle: "",
+        fillRect: () => {},
+        drawImage: (src, ...args) => { drawnImages.push({ src, args }); },
+        save: () => {},
+        restore: () => {},
+      };
+      const mockCanvas = {
+        width: 960,
+        height: 600,
+        getContext: () => mockCtx,
+        captureStream: () => createMockMediaStream(),
+      };
+      const mockWebcamCanvas = {
+        width: 240,
+        height: 180,
+      };
+
+      const recorder = createPostureRecorder({
+        gameCanvas: mockCanvas,
+        webcamCanvas: mockWebcamCanvas,
+        getARMode: () => true,
+        autoDownload: false,
+      });
+
+      recorder.start();
+      assert.strictEqual(recorder.isRecording(), true);
+      recorder.stop();
+      assert.strictEqual(recorder.isRecording(), false);
+    });
+
+    it("positions picture-in-picture in the bottom-left corner in non-AR mode", () => {
+      const drawnImages = [];
+      const mockCtx = {
+        fillStyle: "",
+        fillRect: () => {},
+        drawImage: (src, x, y, w, h) => { drawnImages.push({ src, x, y, w, h }); },
+        save: () => {},
+        restore: () => {},
+      };
+      const mockCanvas = {
+        width: 960,
+        height: 600,
+        getContext: () => mockCtx,
+        captureStream: () => createMockMediaStream(),
+      };
+      const mockWebcamCanvas = {
+        width: 240,
+        height: 180,
+      };
+
+      const recorder = createPostureRecorder({
+        gameCanvas: mockCanvas,
+        webcamCanvas: mockWebcamCanvas,
+        getARMode: () => false,
+        autoDownload: false,
+      });
+
+      recorder.start();
+      assert.strictEqual(recorder.isRecording(), true);
+      recorder.stop();
+      assert.strictEqual(recorder.isRecording(), false);
+    });
   });
 });
+

@@ -166,7 +166,10 @@ export function createMockAudioContext() {
     return {
       value: initial,
       setValueAtTime(v) { this.value = v; },
-      exponentialRampToValueAtTime(v) { this.value = v; },
+      exponentialRampToValueAtTime(v) {
+        if (v <= 0) throw new RangeError("Exponential ramps require a positive value");
+        this.value = v;
+      },
       setTargetAtTime(v) { this.value = v; },
       cancelScheduledValues() {},
     };
@@ -297,6 +300,9 @@ export function createMockCanvasContext() {
     createLinearGradient() {
       return { addColorStop() {} };
     },
+    createRadialGradient() {
+      return { addColorStop() {} };
+    },
   };
 }
 
@@ -324,6 +330,8 @@ export function createMockElement(tagName = "div") {
     srcObject: null,
     play: async () => {},
     pause: () => {},
+    requestFullscreen: async () => {},
+    webkitRequestFullscreen: async () => {},
     classList: {
       toggle(cls, force) {
         return force;

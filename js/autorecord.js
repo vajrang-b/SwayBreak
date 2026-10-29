@@ -1,3 +1,5 @@
+import { downloadBlob } from "./download.js?v=1";
+
 function pickMimeType() {
   const candidates = [
     'video/mp4;codecs=avc1.42E01E', // Safari
@@ -12,20 +14,10 @@ function pickMimeType() {
   return '';
 }
 
-function downloadBlob(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
-}
-
 export function createPostureRecorder(options) {
   const gameCanvas = options.gameCanvas;
   const webcamCanvas = options.webcamCanvas || null;
+  const videoElement = options.videoElement || null;
   const fps = options.fps || 30;
   const maxSeconds = options.maxSeconds || 180; // auto-stop safety cap
   const autoDownload = options.autoDownload !== false;
@@ -38,51 +30,84 @@ export function createPostureRecorder(options) {
     throw new Error('Canvas recording is not supported in this browser');
   }
 
-  const width = 720;
-  const height = 1280;
-  const gameAreaHeight = 700;
-  const webcamAreaY = 740;
-  const webcamAreaHeight = height - webcamAreaY;
-
   let recordingCanvas = null;
   let ctx = null;
   let activeSession = null;
   let rafId = 0;
   let drawRunning = false;
+  let lastDrawTime = 0;
+  const frameIntervalMs = 1000 / fps;
 
-  function drawFrame() {
+  function drawFrame(now = performance.now()) {
     if (!drawRunning) return;
-    ctx.fillStyle = '#101522';
-    ctx.fillRect(0, 0, width, height);
-
-    const gameScale = Math.min(width / gameCanvas.width, gameAreaHeight / gameCanvas.height);
-    const gameWidth = Math.round(gameCanvas.width * gameScale);
-    const gameHeight = Math.round(gameCanvas.height * gameScale);
-    ctx.drawImage(
-      gameCanvas,
-      Math.round((width - gameWidth) / 2),
-      Math.round((gameAreaHeight - gameHeight) / 2),
-      gameWidth,
-      gameHeight,
-    );
-
-    if (webcamCanvas?.width && webcamCanvas.height) {
-      const webcamScale = Math.min(width / webcamCanvas.width, webcamAreaHeight / webcamCanvas.height);
-      const webcamWidth = Math.round(webcamCanvas.width * webcamScale);
-      const webcamHeight = Math.round(webcamCanvas.height * webcamScale);
-      ctx.drawImage(
-        webcamCanvas,
-        Math.round((width - webcamWidth) / 2),
-        webcamAreaY + Math.round((webcamAreaHeight - webcamHeight) / 2),
-        webcamWidth,
-        webcamHeight,
-      );
-    }
     rafId = requestAnimationFrame(drawFrame);
+
+    if (now - lastDrawTime < frameIntervalMs) return;
+    lastDrawTime = now;
+
+    const width = gameCanvas.width || 960;
+    const height = gameCanvas.height || 600;
+    if (recordingCanvas.width !== width || recordingCanvas.height !== height) {
+      recordingCanvas.width = width;
+      recordingCanvas.height = height;
+    }
+
+    const isAR = (typeof options.getARMode === 'function') ? options.getARMode() : false;
+    const video = videoElement;
+    const hasWebcamCanvas = Boolean(webcamCanvas?.width && webcamCanvas.height);
+    const hasVideo = Boolean(video && video.readyState >= 2);
+
+    if (isAR && (hasWebcamCanvas || hasVideo)) {
+      // In AR mode: draw camera background with pose skeleton covering the entire canvas
+      const source = hasWebcamCanvas ? webcamCanvas : video;
+      const sWidth = source.videoWidth || source.width || 640;
+      const sHeight = source.videoHeight || source.height || 480;
+      const scale = Math.max(width / sWidth, height / sHeight);
+      const drawW = Math.round(sWidth * scale);
+      const drawH = Math.round(sHeight * scale);
+      const offsetX = Math.round((width - drawW) / 2);
+      const offsetY = Math.round((height - drawH) / 2);
+
+      ctx.save();
+      if (source === video) {
+        // Video element is raw camera feed, mirror it
+        ctx.translate(width, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, -offsetX - drawW, offsetY, drawW, drawH);
+      } else {
+        // webcamCanvas is already mirrored by pose.js drawPreview
+        ctx.drawImage(webcamCanvas, offsetX, offsetY, drawW, drawH);
+      }
+      ctx.restore();
+
+      // Overlay the game elements (bricks, ball, paddle, particles) on top
+      ctx.drawImage(gameCanvas, 0, 0, width, height);
+    } else {
+      // Standard non-AR mode: Draw game canvas on dark background
+      ctx.fillStyle = '#101522';
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(gameCanvas, 0, 0, width, height);
+
+      // If webcam skeleton canvas is available, overlay picture-in-picture in bottom-left corner
+      // (Never in the top-right brick zone!)
+      if (hasWebcamCanvas) {
+        const pipW = Math.round(width * 0.22);
+        const pipH = Math.round((webcamCanvas.height / webcamCanvas.width) * pipW);
+        const pipX = 16;
+        const pipY = height - pipH - 16;
+        ctx.save();
+        ctx.fillStyle = 'rgba(10, 14, 24, 0.75)';
+        ctx.fillRect(pipX - 2, pipY - 2, pipW + 4, pipH + 4);
+        ctx.drawImage(webcamCanvas, pipX, pipY, pipW, pipH);
+        ctx.restore();
+      }
+    }
   }
 
   function start(microphoneStream = null) {
     if (activeSession?.recorder.state === 'recording') return;
+    const width = gameCanvas.width || 960;
+    const height = gameCanvas.height || 600;
     recordingCanvas = document.createElement('canvas');
     recordingCanvas.width = width;
     recordingCanvas.height = height;

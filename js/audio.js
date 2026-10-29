@@ -168,7 +168,9 @@ export function ensureAudio(isGameOver = false) {
   }
 
   if (audioState.context.state === "suspended") {
-    void audioState.context.resume();
+    void audioState.context.resume().catch((error) => {
+      console.warn("Could not resume audio context:", error);
+    });
   }
   return true;
 }
@@ -198,7 +200,7 @@ function playTone({ type = "triangle", frequency = 440, frequencyEnd = null, dur
   osc.frequency.setValueAtTime(frequency, now);
   if (frequencyEnd) osc.frequency.exponentialRampToValueAtTime(Math.max(30, frequencyEnd), now + duration);
   gain.gain.setValueAtTime(0.001, now);
-  gain.gain.exponentialRampToValueAtTime(volume, now + 0.008);
+  gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, volume), now + 0.008);
   gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
   osc.connect(gain);
   gain.connect(outNode);
@@ -225,7 +227,7 @@ export function playAirySound({ duration = 0.12, volume = 0.015, frequency = 900
   filter.frequency.exponentialRampToValueAtTime(Math.max(120, frequency * 0.5), now + duration);
   filter.Q.value = 0.8;
   envelope.gain.setValueAtTime(0.0001, now);
-  envelope.gain.exponentialRampToValueAtTime(volume, now + 0.012);
+  envelope.gain.exponentialRampToValueAtTime(Math.max(0.0001, volume), now + 0.012);
   envelope.gain.exponentialRampToValueAtTime(0.0001, now + duration);
   source.connect(filter);
   filter.connect(envelope);

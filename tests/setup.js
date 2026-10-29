@@ -53,7 +53,12 @@ if (!globalThis.URL.revokeObjectURL) {
   globalThis.URL.revokeObjectURL = () => {};
 }
 
+const mockBody = createMockElement("body");
+mockBody.appendChild = (child) => child;
+mockBody.removeChild = () => {};
+
 const mockDoc = {
+  documentElement: createMockElement("html"),
   createElement(tag) {
     if (tag === "canvas") {
       const el = new MockHTMLCanvasElement();
@@ -68,16 +73,20 @@ const mockDoc = {
   querySelectorAll(selector) {
     return [];
   },
-  body: {
-    appendChild(child) { return child; },
-    removeChild(child) {},
-  },
+  addEventListener() {},
+  removeEventListener() {},
+  exitFullscreen: async () => {},
+  webkitExitFullscreen: async () => {},
+  fullscreenElement: null,
+  body: mockBody,
 };
 
 globalThis.document = mockDoc;
 
 globalThis.window = {
   isSecureContext: true,
+  innerWidth: 1024,
+  innerHeight: 768,
   location: { search: "" },
   AudioContext: globalThis.AudioContext,
   webkitAudioContext: globalThis.webkitAudioContext,

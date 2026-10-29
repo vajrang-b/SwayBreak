@@ -65,7 +65,9 @@ describe("config.js", () => {
       assert.ok(CONFIG.game.speedIncreaseEveryBricks > 0);
       assert.ok(CONFIG.game.speedIncreaseMultiplier > 1);
       assert.ok(CONFIG.game.basePaddleWidth > 0);
+      assert.ok(CONFIG.game.basePaddleWidthMobile > 0);
       assert.ok(CONFIG.game.paddleHeight > 0);
+      assert.ok(CONFIG.game.paddleHeightMobile > 0);
       assert.ok(CONFIG.game.ballRadius > 0);
       assert.ok(CONFIG.game.ballSpeedX > 0);
       assert.ok(CONFIG.game.ballSpeedY < 0);
@@ -76,6 +78,8 @@ describe("config.js", () => {
     it("has valid throttle and debounce values", () => {
       assert.ok(CONFIG.tracking.inferenceThrottleMs >= 10);
       assert.ok(CONFIG.tracking.droppedFramesDebounce >= 1);
+      assert.ok(CONFIG.tracking.leanSensitivity > 0 && CONFIG.tracking.leanSensitivity <= 1);
     });
   });
 });
+

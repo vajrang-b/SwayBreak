@@ -1,10 +1,11 @@
-import { CANVAS_WIDTH, CANVAS_HEIGHT } from "./constants.js?v=12";
+import { CANVAS_WIDTH, CANVAS_HEIGHT } from "./constants.js?v=13";
 import * as audio from "./audio.js?v=22";
-import { Game } from "./game.js?v=22";
-import { PoseTracker } from "./pose.js?v=15";
-import { CONFIG } from "./config.js?v=16";
-import { createPostureRecorder } from "./autorecord.js?v=3";
+import { Game } from "./game.js?v=24";
+import { PoseTracker } from "./pose.js?v=17";
+import { CONFIG } from "./config.js?v=17";
+import { createPostureRecorder } from "./autorecord.js?v=4";
 import { isAutoSaveEnabled, saveRecording, setAutoSaveEnabled } from "./recording-storage.js?v=1";
+import { downloadBlob } from "./download.js?v=1";
 
 // DOM Elements
 const canvas = document.querySelector("#game");
@@ -28,10 +29,16 @@ const autoSaveToggle = document.querySelector("#auto-save-toggle");
 const autoSaveStatus = document.querySelector("#auto-save-status");
 const video = document.querySelector("#camera");
 const posePreview = document.querySelector("#pose-preview");
+const arModeToggle = document.querySelector("#ar-mode-toggle");
+const fullscreenButton = document.querySelector("#fullscreen-button");
+const floatingFullscreenBtn = document.querySelector("#floating-fullscreen-btn");
+const gameWrap = document.querySelector(".game-wrap");
 const shareScoreButton = document.querySelector("#share-score-button");
 const shareScoreStatus = document.querySelector("#share-score-status");
 const challengeStatus = document.querySelector("#challenge-status");
 const cameraGuide = document.querySelector("#camera-guide");
+
+let userExitedFullscreen = false;
 
 let recorder = null;
 let recordingHasMicrophone = false;
@@ -63,6 +70,11 @@ if (Number.isSafeInteger(challengeScore) && challengeScore > 0) {
 }
 
 function saveBestScore(score) {
+  if (score <= 0) {
+    return hasSavedBestScore
+      ? `No points this round. Your best is ${bestScore}.`
+      : "Score points to set your first personal best.";
+  }
   const previousBest = bestScore;
   const isNewBest = !hasSavedBestScore || score > previousBest;
   if (isNewBest) {
@@ -87,17 +99,6 @@ try {
   autoSaveStatus.textContent = `Auto-save preference unavailable: ${error.message}`;
 }
 
-function downloadBlob(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
-}
-
 function startRecording(microphoneStream = null) {
   if (!recorder) return;
   clearTimeout(recordingStopTimer);
@@ -116,7 +117,7 @@ function stopRecording(delayMs = 0) {
   clearTimeout(recordingStopTimer);
   recordingStopTimer = 0;
   if (delayMs > 0 && recorder?.isRecording()) {
-    recordingStatus.textContent = "Round complete. Capturing the win moment…";
+    recordingStatus.textContent = "Round complete. Finalizing recording…";
     recordingStopTimer = setTimeout(() => {
       recordingStopTimer = 0;
       stopRecording();
@@ -129,10 +130,19 @@ function stopRecording(delayMs = 0) {
   }
 }
 
+function detectOrientation() {
+  if (typeof window === "undefined" || !window.innerWidth || !window.innerHeight) return "landscape";
+  const isMobileOrNarrow = window.innerWidth <= 850 || /Android|iPhone|iPad|iPod/i.test(navigator?.userAgent || "");
+  return (isMobileOrNarrow && window.innerHeight > window.innerWidth) ? "portrait" : "landscape";
+}
+
 try {
   recorder = createPostureRecorder({
     gameCanvas: canvas,
+    videoElement: video,
     webcamCanvas: posePreview,
+    getARMode: () => game.arMode,
+    getOrientation: () => game.orientation,
     createAudioRecording: audio.createRecordingAudioStream,
     autoDownload: false,
     onEvent: (type) => {
@@ -142,9 +152,10 @@ try {
         recordingStatus.hidden = false;
         saveRecordingButton.hidden = true;
         saveEventsButton.hidden = true;
+        const orientLabel = (game?.orientation === "portrait") ? "portrait" : "landscape";
         recordingStatus.textContent = recordingHasMicrophone
-          ? "Recording portrait video with game, camera, skeleton, game sound and microphone. Tap Save video when recording finishes."
-          : "Recording portrait video with game, camera, skeleton and game sound. Microphone unavailable. Tap Save video when recording finishes.";
+          ? `🔴 REC (${orientLabel}) · Mic on`
+          : `🔴 REC (${orientLabel})`;
       }
     },
     onFile: async (blob, events, filename) => {
@@ -159,8 +170,8 @@ try {
       saveRecordingButton.hidden = false;
       saveEventsButton.hidden = !pendingEventLog;
       recordingStatus.textContent = autoSaveEnabled
-        ? "Recording ready. Saving to this device’s recordings library…"
-        : "Recording ready. Auto-save is off; tap Save video to keep it.";
+        ? "Recording saved to My recordings."
+        : "Recording ready. Tap Save video to keep it.";
       if (autoSaveEnabled) {
         try {
           await saveRecording({
@@ -170,7 +181,7 @@ try {
             events,
             createdAt: new Date().toISOString(),
           });
-          recordingStatus.textContent = "Recording saved in My recordings. You can also download or share it now.";
+          recordingStatus.textContent = "Saved to My recordings.";
         } catch (error) {
           console.error("Could not save recording locally:", error);
           recordingStatus.textContent = `Could not auto-save recording: ${error.message}. Tap Save video to keep it.`;
@@ -236,6 +247,7 @@ saveEventsButton.addEventListener("click", () => {
 const game = new Game({
   canvas,
   audio,
+  orientation: detectOrientation(),
   onScoreChange: (score) => {
     scoreElement.textContent = String(score);
   },
@@ -253,11 +265,41 @@ const game = new Game({
     roundElement.textContent = String(level);
   },
   onGameOver: (title, message, autoRestart = false) => {
+    const stats = game.getWorkoutStats?.() ?? null;
     const scoreMessage = saveBestScore(game.score);
-    overlayTitle.textContent = title;
-    overlayMessage.textContent = `${scoreMessage} ${autoRestart ? message : "Choose Play again to start another round."}`;
+    overlayTitle.textContent = title === "Time's up!" ? "Workout Set Complete!" : title;
+    if (stats) {
+      overlayMessage.innerHTML = `
+        <div class="overlay-score-badge">${scoreMessage}</div>
+        <div class="workout-metrics-grid">
+          <div class="metric-pill">
+            <span class="metric-icon">⚡</span>
+            <span class="metric-val">${stats.jumps}</span>
+            <span class="metric-label">Jumps</span>
+          </div>
+          <div class="metric-pill">
+            <span class="metric-icon">🎯</span>
+            <span class="metric-val">${stats.clutchSaves}</span>
+            <span class="metric-label">Clutch</span>
+          </div>
+          <div class="metric-pill">
+            <span class="metric-icon">🔥</span>
+            <span class="metric-val">${stats.calories}</span>
+            <span class="metric-label">kcal</span>
+          </div>
+          <div class="metric-pill">
+            <span class="metric-icon">🧱</span>
+            <span class="metric-val">${stats.bricks}</span>
+            <span class="metric-label">Bricks</span>
+          </div>
+        </div>
+        <p class="overlay-countdown-hint">${autoRestart ? message : "Tap Play again for another set."}</p>
+      `;
+    } else {
+      overlayMessage.textContent = `${scoreMessage} ${autoRestart ? message : "Choose Play again to start another round."}`;
+    }
     shareScoreStatus.textContent = "";
-    shareScoreButton.hidden = false;
+    shareScoreButton.hidden = game.score <= 0;
     overlay.hidden = false;
     if (poseTracker.isEnabled()) postureButton.textContent = "Play again";
     stopRecording(1500);
@@ -271,6 +313,109 @@ const game = new Game({
   },
   onClutchSave: () => recorder?.markEvent("CLUTCH_SAVE"),
   onSmash: () => recorder?.markEvent("SMASH"),
+});
+
+function setARMode(enabled) {
+  const active = Boolean(enabled && poseTracker.isEnabled());
+  arModeToggle.checked = active;
+  game.setARMode(active);
+  gameWrap.classList.toggle("ar-mode", active);
+  video.hidden = true;
+  posePreview.hidden = !poseTracker.isEnabled();
+}
+
+export function isFullscreenActive() {
+  return Boolean(
+    document.fullscreenElement ||
+    document.webkitFullscreenElement ||
+    document.mozFullScreenElement ||
+    document.msFullscreenElement ||
+    document.body?.classList?.contains("is-fullscreen")
+  );
+}
+
+export function syncFullscreenUI(active = isFullscreenActive()) {
+  document.body?.classList?.toggle("is-fullscreen", active);
+  if (fullscreenButton) {
+    fullscreenButton.setAttribute("aria-pressed", String(active));
+    const label = fullscreenButton.querySelector(".fs-label") || fullscreenButton;
+    label.textContent = active ? "✕ Exit full screen" : "⛶ Full screen";
+  }
+  if (floatingFullscreenBtn) {
+    floatingFullscreenBtn.setAttribute("aria-label", active ? "Exit full screen" : "Toggle full screen");
+    floatingFullscreenBtn.setAttribute("title", active ? "Exit full screen (F or Esc)" : "Toggle full screen (F)");
+  }
+}
+
+export async function enterFullscreen() {
+  userExitedFullscreen = false;
+  const root = document.documentElement;
+  try {
+    if (root?.requestFullscreen) {
+      await root.requestFullscreen();
+    } else if (root?.webkitRequestFullscreen) {
+      await root.webkitRequestFullscreen();
+    } else if (root?.mozRequestFullScreen) {
+      await root.mozRequestFullScreen();
+    } else if (root?.msRequestFullscreen) {
+      await root.msRequestFullscreen();
+    } else {
+      document.body?.classList?.add("is-fullscreen");
+      syncFullscreenUI(true);
+    }
+  } catch (error) {
+    console.warn("Fullscreen request not granted, falling back to CSS full-window mode:", error);
+    document.body?.classList?.add("is-fullscreen");
+    syncFullscreenUI(true);
+  }
+}
+
+export async function exitFullscreen() {
+  userExitedFullscreen = true;
+  try {
+    if (document.exitFullscreen && document.fullscreenElement) {
+      await document.exitFullscreen();
+    } else if (document.webkitExitFullscreen && document.webkitFullscreenElement) {
+      await document.webkitExitFullscreen();
+    } else if (document.mozCancelFullScreen && document.mozFullScreenElement) {
+      await document.mozCancelFullScreen();
+    } else if (document.msExitFullscreen && document.msFullscreenElement) {
+      await document.msExitFullscreen();
+    }
+  } catch (error) {
+    console.warn("Exit fullscreen error:", error);
+  } finally {
+    document.body?.classList?.remove("is-fullscreen");
+    syncFullscreenUI(false);
+  }
+}
+
+export async function toggleFullscreen() {
+  if (isFullscreenActive()) {
+    await exitFullscreen();
+  } else {
+    await enterFullscreen();
+  }
+}
+
+fullscreenButton?.addEventListener("click", () => {
+  void toggleFullscreen();
+});
+
+floatingFullscreenBtn?.addEventListener("click", () => {
+  void toggleFullscreen();
+});
+
+document.addEventListener?.("fullscreenchange", () => syncFullscreenUI());
+document.addEventListener?.("webkitfullscreenchange", () => syncFullscreenUI());
+document.addEventListener?.("mozfullscreenchange", () => syncFullscreenUI());
+document.addEventListener?.("MSFullscreenChange", () => syncFullscreenUI());
+
+arModeToggle.addEventListener("change", () => {
+  setARMode(arModeToggle.checked);
+  if (arModeToggle.checked && !userExitedFullscreen && !isFullscreenActive()) {
+    void enterFullscreen();
+  }
 });
 
 shareScoreButton.addEventListener("click", async () => {
@@ -300,32 +445,52 @@ const poseTracker = new PoseTracker({
   posePreview,
   postureStatus,
   postureButton,
-  canvasWidth: CANVAS_WIDTH,
+  canvasWidth: game.width,
   getPaddle: () => game.paddle,
   setTargetPaddleX: (x, leftRatio, rightRatio) => game.setTargetPaddleX(x, leftRatio, rightRatio),
   clearTargetPaddleX: () => game.clearTargetPaddleX(),
   onPostureEnabled: (microphoneStream) => {
     cameraGuide.hidden = true;
+    arModeToggle.disabled = false;
+    setARMode(true);
     postureButton.textContent = game.gameOver ? "Play again" : "Stop playing";
     postureButton.classList.remove("awaiting-start");
     postureStatus.hidden = true;
     postureStatus.textContent = "Lean to move. Reach out to widen your paddle; jump to smash.";
     if (game.gameOver) {
-      game.startAgain();
+      game.startAgain({ resetLevel: true });
     } else {
       startRecording(microphoneStream);
       game.startCountdown(CONFIG.game?.countdownSeconds ?? 3);
     }
   },
   onPostureDisabled: () => {
+    arModeToggle.disabled = true;
+    setARMode(false);
     cameraGuide.hidden = false;
     postureButton.textContent = "Start playing";
     postureButton.classList.add("awaiting-start");
+    overlay.hidden = true;
+    shareScoreButton.hidden = true;
+    roundElement.textContent = "1";
+    game.stopPlaying();
   },
   onJumpTriggered: () => {
     game.triggerJump();
   },
 });
+
+export function syncOrientation() {
+  const currentOrientation = detectOrientation();
+  const isPortrait = currentOrientation === "portrait";
+  document.body?.classList?.toggle("is-portrait", isPortrait);
+  game.setOrientation(currentOrientation);
+  poseTracker.setCanvasWidth(game.width);
+}
+
+window.addEventListener("resize", () => syncOrientation());
+window.addEventListener("orientationchange", () => syncOrientation());
+syncOrientation();
 
 function updateSoundButtonUI(enabled) {
   soundButton.textContent = enabled ? "Sound: On" : "Sound: Off";
@@ -368,14 +533,18 @@ soundButton.addEventListener("click", async () => {
 postureButton.addEventListener("click", () => {
   audio.ensureAudio(game.gameOver);
   if (game.gameOver && poseTracker.isEnabled()) {
-    game.startAgain();
+    game.startAgain({ resetLevel: true });
     return;
   }
   postureStatus.hidden = false;
   if (poseTracker.isEnabled()) {
     stopRecording();
     poseTracker.disable();
+    game.stopPlaying();
   } else {
+    if (!userExitedFullscreen && !isFullscreenActive()) {
+      void enterFullscreen();
+    }
     void poseTracker.enable();
   }
 });
@@ -384,7 +553,7 @@ postureButton.addEventListener("click", () => {
 function handleRestartAttempt() {
   audio.ensureAudio(game.gameOver);
   if (game.gameOver && poseTracker.isEnabled()) {
-    game.startAgain();
+    game.startAgain({ resetLevel: true });
   }
 }
 
@@ -392,13 +561,34 @@ canvas.addEventListener("pointerdown", handleRestartAttempt);
 overlay.addEventListener("click", (event) => {
   if (event.target === overlay) handleRestartAttempt();
 });
+overlay.querySelector(".overlay-card")?.addEventListener("pointerdown", () => {
+  // Pause automatic restart countdown so player has time to review workout and share
+  game.autoRestartTimer = 0;
+});
 
 window.addEventListener("pointerdown", () => audio.ensureAudio(game.gameOver), { passive: true });
 window.addEventListener("touchstart", () => audio.ensureAudio(game.gameOver), { passive: true });
 
-// Prevent scroll on arrow keys or space; restart on space if game over; jump on ArrowUp / Space
+// Keyboard controls & shortcuts:
+// - F: Toggle fullscreen
+// - Esc: Exit fullscreen (in fallback mode)
+// - ArrowUp / Space / W: Jump smash
 window.addEventListener("keydown", (event) => {
   audio.ensureAudio(game.gameOver);
+  if ((event.key === "f" || event.key === "F") && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    const targetTag = event.target?.tagName?.toLowerCase();
+    if (targetTag !== "input" && targetTag !== "textarea") {
+      event.preventDefault();
+      void toggleFullscreen();
+      return;
+    }
+  }
+  if (event.key === "Escape" && document.body?.classList?.contains("is-fullscreen")) {
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+      void exitFullscreen();
+      return;
+    }
+  }
   if (["ArrowLeft", "ArrowRight", "ArrowUp", "w", "W", " "].includes(event.key)) {
     event.preventDefault();
   }
@@ -406,7 +596,7 @@ window.addEventListener("keydown", (event) => {
     game.triggerJump();
   }
   if (event.key === " " && game.gameOver && poseTracker.isEnabled()) {
-    game.startAgain();
+    game.startAgain({ resetLevel: true });
   } else if (event.key === " " && !game.gameOver) {
     game.triggerJump();
   }
@@ -418,10 +608,25 @@ poseTracker.preloadModel();
 // Animation frame loop
 let lastFrameTime = 0;
 function frame(now) {
-  const delta = Math.min((now - lastFrameTime) / 1000 || 0, 0.03);
+  if (!lastFrameTime) lastFrameTime = now;
+  const rawDelta = (now - lastFrameTime) / 1000;
   lastFrameTime = now;
+
+  // Bound delta to max 100ms (10 FPS) to prevent tab-switch tunneling,
+  // but NEVER clamp 30ms-100ms frames to 30ms (which caused 2x-3x slow motion when camera was active!)
+  const delta = Math.min(Math.max(rawDelta, 0), 0.1);
+
   poseTracker.update(now, game.paddle.width);
-  game.update(delta);
+
+  // Substep physics when delta > 25ms to maintain identical real-world speed and collision precision
+  const maxSubStep = 0.025;
+  let remaining = delta;
+  while (remaining > 0) {
+    const step = Math.min(remaining, maxSubStep);
+    game.update(step);
+    remaining -= step;
+  }
+
   game.draw();
   requestAnimationFrame(frame);
 }

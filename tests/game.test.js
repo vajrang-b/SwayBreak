@@ -232,15 +232,15 @@ describe("game.js - Game Engine", () => {
       let clutchSoundPlayed = false;
       mockAudio.playClutchSaveSound = () => { clutchSoundPlayed = true; };
 
+      game.targetCenterX = null;
       game.paddle.leftExtend = 50;
-      game.paddle.width = game.basePaddleWidth + 50;
-      // Position ball on left wing outside base core
-      game.ball.x = game.paddle.x - 2;
-      game.ball.y = game.paddle.y - game.ball.radius + 1;
+      game.paddle.width = game.basePaddleWidth + game.paddle.leftExtend;
+      game.ball.x = game.paddle.x + 20;
+      game.ball.y = game.paddle.y;
       game.ball.vy = 250;
 
       const initialScore = game.score;
-      game.update(0.01);
+      game.update(0.001);
 
       assert.strictEqual(callbacks.clutchSaves, 1);
       assert.strictEqual(clutchSoundPlayed, true);
@@ -250,19 +250,33 @@ describe("game.js - Game Engine", () => {
       assert.ok(game.floatingTexts.some((ft) => ft.text.includes("CLUTCH SAVE")));
     });
 
+    it("does not trigger clutch save on a base paddle edge graze", () => {
+      game.targetCenterX = null;
+      game.ball.x = game.paddle.x - 4;
+      game.ball.y = game.paddle.y;
+      game.ball.vy = 250;
+
+      game.update(0.001);
+
+      assert.strictEqual(callbacks.clutchSaves, 0);
+    });
+
     it("triggers smash hit when ball hits while jumping", () => {
       let smashSoundPlayed = false;
       mockAudio.playSmashSound = () => { smashSoundPlayed = true; };
 
-      // Simulate jumping paddle
-      game.paddle.jumpOffset = 25;
-      game.paddle.y = game.basePaddleY - 25;
+      // Initiate jump arc and reach apex
+      game.targetCenterX = null;
+      game.triggerJump();
+      game.jumpTimer = game.totalJumpDuration / 2;
+      game.update(0.001); // Update paddle to apex
+
       game.ball.x = game.paddle.x + game.paddle.width / 2;
-      game.ball.y = game.paddle.y - game.ball.radius + 1;
+      game.ball.y = game.paddle.y;
       game.ball.vy = 250;
 
       const initialScore = game.score;
-      game.update(0.01);
+      game.update(0.001);
 
       assert.strictEqual(callbacks.smashes, 1);
       assert.strictEqual(smashSoundPlayed, true);
@@ -286,6 +300,25 @@ describe("game.js - Game Engine", () => {
       assert.strictEqual(game.comboStreak, 1);
       assert.strictEqual(game.score, initialScore + CONFIG.game.brickScore);
       assert.ok(game.ball.vy > 0); // Bounced downward
+    });
+
+    it("bounces horizontally when hitting a brick from the side", () => {
+      const targetBrick = game.bricks.find((brick) => brick.visible && !brick.mystery);
+      targetBrick.mystery = false;
+      for (const brick of game.bricks) {
+        brick.visible = brick === targetBrick;
+      }
+      game.bricks.push({ ...targetBrick, visible: true, x: targetBrick.x + 200 });
+      game.ball.x = targetBrick.x - game.ball.radius - 4;
+      game.ball.y = targetBrick.y + targetBrick.height / 2;
+      game.ball.vx = 1000;
+      game.ball.vy = 0;
+
+      game.update(0.01);
+
+      assert.strictEqual(targetBrick.visible, false);
+      assert.ok(game.ball.vx < 0);
+      assert.strictEqual(game.ball.vy, 0);
     });
 
     it("awards combo streak bonus at 3 consecutive brick hits", () => {
@@ -394,10 +427,54 @@ describe("game.js - Game Engine", () => {
       assert.strictEqual(game.gameOver, false);
       assert.strictEqual(callbacks.gameRestarts, 1);
       assert.strictEqual(game.score, 0);
+      assert.strictEqual(game.roundNumber, 2);
+    });
+
+    it("starts a manually replayed game at level one", () => {
+      game.roundNumber = 4;
+      game.startAgain({ resetLevel: true });
+
+      assert.strictEqual(game.roundNumber, 1);
+      assert.strictEqual(game.bricks.length, BRICK_CONFIG.columns * BRICK_CONFIG.rows);
+    });
+
+    it("halts game update, resets ball to paddle, and resets state when stopPlaying is called", () => {
+      game.waitingForPosture = false;
+      game.countdown = 0;
+      game.score = 250;
+      game.roundTimeRemaining = 45;
+      game.ball.vx = 200;
+      game.ball.vy = -300;
+
+      game.stopPlaying();
+
+      assert.strictEqual(game.waitingForPosture, true);
+      assert.strictEqual(game.score, 0);
+      assert.strictEqual(game.ball.vx, 0);
+      assert.strictEqual(game.ball.vy, 0);
+      assert.strictEqual(game.ball.x, game.paddle.x + game.paddle.width / 2);
+      assert.strictEqual(game.roundTimeRemaining, CONFIG.game.roundDurationSeconds);
+
+      // Verify update does not proceed when stopped
+      game.update(0.1);
+      assert.strictEqual(game.roundTimeRemaining, CONFIG.game.roundDurationSeconds);
     });
   });
 
   describe("rendering and visual helpers", () => {
+    it("leaves the game canvas transparent in AR mode", () => {
+      let backgroundPaints = 0;
+      game.ctx.fillRect = () => { backgroundPaints += 1; };
+
+      game.setARMode(true);
+      game.draw();
+      assert.strictEqual(backgroundPaints, 0);
+
+      game.setARMode(false);
+      game.draw();
+      assert.strictEqual(backgroundPaints, 1);
+    });
+
     it("draws canvas elements without throwing exceptions across states", () => {
       game.waitingForPosture = true;
       assert.doesNotThrow(() => game.draw());
@@ -426,6 +503,107 @@ describe("game.js - Game Engine", () => {
 
       // Falls back safely for non-matching strings
       assert.strictEqual(game.lightenColor("invalid"), "invalid");
+    });
+  });
+
+  describe("fitness gamification and workout metrics", () => {
+    beforeEach(() => {
+      game.waitingForPosture = false;
+      game.countdown = 0;
+      game.resetBricks();
+    });
+
+    it("tracks jumps, smashes, clutch saves, and computes calories", () => {
+      game.triggerJump();
+      assert.strictEqual(game.jumpsCount, 1);
+
+      // Trigger a clutch save
+      game.targetCenterX = null;
+      game.paddle.leftExtend = 50;
+      game.paddle.width = game.basePaddleWidth + game.paddle.leftExtend;
+      game.ball.x = game.paddle.x + 20;
+      game.ball.y = game.paddle.y;
+      game.ball.vy = 250;
+      game.update(0.001);
+
+      assert.strictEqual(game.clutchSavesCount, 1);
+
+      // Trigger a second hit immediately during cooldown
+      game.ball.x = game.paddle.x + 20;
+      game.ball.y = game.paddle.y;
+      game.ball.vy = 250;
+      game.update(0.001);
+      // Still 1 due to cooldown preventing static T-pose spam
+      assert.strictEqual(game.clutchSavesCount, 1);
+
+      // Advance round time
+      game.roundTimeRemaining = 70; // 20s active
+      const stats = game.getWorkoutStats();
+      assert.strictEqual(stats.jumps, 1);
+      assert.strictEqual(stats.clutchSaves, 1);
+      assert.strictEqual(stats.activeSeconds, 20);
+      assert.ok(stats.calories > 0);
+    });
+
+    it("maintains smooth difficulty progression across levels", () => {
+      game.roundNumber = 1;
+      assert.strictEqual(game.getSpeedMultiplier(), 1);
+
+      game.advanceLevel();
+      assert.strictEqual(game.roundNumber, 2);
+      // Level 2 begins with smooth level bonus, avoiding difficulty collapse
+      assert.ok(game.getSpeedMultiplier() > 1);
+    });
+  });
+
+  describe("Orientation and responsive paddle sizing", () => {
+    it("defaults to landscape mode with landscape paddle and dimensions", () => {
+      const mockCanvas = { width: 960, height: 600, getContext: () => ({}) };
+      const g = new Game({ canvas: mockCanvas, audio: mockAudio });
+      assert.strictEqual(g.orientation, "landscape");
+      assert.strictEqual(g.width, 960);
+      assert.strictEqual(g.height, 600);
+      assert.strictEqual(g.basePaddleWidth, CONFIG.game.basePaddleWidth);
+      assert.strictEqual(g.paddle.height, CONFIG.game.paddleHeight);
+      g.resetBricks();
+      assert.strictEqual(g.bricks.length, 45); // 9 columns * 5 rows
+    });
+
+    it("switches to portrait mode with mobile paddle sizing and portrait bricks", () => {
+      const mockCanvas = { width: 960, height: 600, getContext: () => ({}) };
+      const g = new Game({ canvas: mockCanvas, audio: mockAudio });
+
+      g.setOrientation("portrait");
+      assert.strictEqual(g.orientation, "portrait");
+      assert.strictEqual(g.width, 600);
+      assert.strictEqual(g.height, 960);
+      assert.strictEqual(g.basePaddleWidth, CONFIG.game.basePaddleWidthMobile);
+      assert.strictEqual(g.paddle.height, CONFIG.game.paddleHeightMobile);
+      assert.strictEqual(g.paddle.width, CONFIG.game.basePaddleWidthMobile);
+      assert.strictEqual(mockCanvas.width, 600);
+      assert.strictEqual(mockCanvas.height, 960);
+      assert.strictEqual(g.bricks.length, 36); // 6 columns * 6 rows in portrait
+
+      // Bricks positioned properly across portrait top area
+      assert.strictEqual(g.bricks[0].width, 86);
+      assert.strictEqual(g.bricks[0].height, 24);
+      assert.strictEqual(g.bricks[0].y, 80);
+    });
+
+    it("switches back to landscape cleanly", () => {
+      const mockCanvas = { width: 960, height: 600, getContext: () => ({}) };
+      const g = new Game({ canvas: mockCanvas, audio: mockAudio });
+
+      g.setOrientation("portrait");
+      assert.strictEqual(g.width, 600);
+
+      g.setOrientation("landscape");
+      assert.strictEqual(g.orientation, "landscape");
+      assert.strictEqual(g.width, 960);
+      assert.strictEqual(g.height, 600);
+      assert.strictEqual(g.basePaddleWidth, CONFIG.game.basePaddleWidth);
+      assert.strictEqual(g.paddle.height, CONFIG.game.paddleHeight);
+      assert.strictEqual(g.bricks.length, 45);
     });
   });
 });

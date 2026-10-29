@@ -20,6 +20,7 @@ import {
   playBallCatchSound,
   playGameEndSound,
   playUiBlip,
+  playAirySound,
 } from "../js/audio.js";
 import { createMockMediaStream, createMockTrack } from "./mocks/browser-env.js";
 
@@ -69,6 +70,25 @@ describe("audio.js", () => {
       audioState.context.state = "suspended";
       await resumeAudio();
       assert.strictEqual(audioState.context.state, "running");
+    });
+
+    it("handles automatic resume rejection", async () => {
+      const originalResume = audioState.context.resume;
+      const originalWarn = console.warn;
+      let warningLogged = false;
+      audioState.context.state = "suspended";
+      audioState.context.resume = () => Promise.reject(new Error("autoplay blocked"));
+      console.warn = () => { warningLogged = true; };
+
+      try {
+        assert.strictEqual(ensureAudio(), true);
+        await new Promise((resolve) => setImmediate(resolve));
+        assert.strictEqual(warningLogged, true);
+      } finally {
+        audioState.context.resume = originalResume;
+        audioState.context.state = "running";
+        console.warn = originalWarn;
+      }
     });
   });
 
@@ -152,6 +172,10 @@ describe("audio.js", () => {
     it("plays UI blip tones", () => {
       assert.doesNotThrow(() => playUiBlip(520));
       assert.doesNotThrow(() => playUiBlip(880));
+    });
+
+    it("accepts zero-volume noise without invalid exponential gain ramps", () => {
+      assert.doesNotThrow(() => playAirySound({ volume: 0 }));
     });
 
     it("does not play sounds when audio is disabled", () => {

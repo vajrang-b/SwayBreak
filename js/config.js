@@ -34,6 +34,7 @@ export const CONFIG = {
     reachThreshold: 0.35,     // Sensitivity for triggering extension
     wingColor: "#5ce1b8",     // Glowing neon color for extended paddle wings
     glowIntensity: 12,        // Shadow blur for wing glow
+    clutchCooldownSec: 0.8,   // Cooldown between clutch saves to prevent static T-pose spam
   },
 
   // Jump & Smash Mechanics (Plyometric Cardio Boost)
@@ -45,7 +46,7 @@ export const CONFIG = {
     hangTimeTimeoutSec: 0.85, // If elevated longer than this, auto-recalibrate baseline (fixes lid tilt)
     maxJumpOffset: 65,        // Max pixels the paddle rises on jump
     jumpDurationSec: 0.42,    // Duration of paddle jump arc in seconds
-    smashSpeedMultiplier: 1.35, // Speed multiplier on jump hit (smash)
+    smashSpeedMultiplier: 1.20, // Balanced speed multiplier on jump hit (smash) to keep ball returnable
     smashBonusPoints: 30,     // Extra bonus score for smash hit
   },
 
@@ -54,7 +55,7 @@ export const CONFIG = {
     countdownSeconds: 3,      // 3-second ready countdown on start & restart
     levelTransitionSeconds: 5,
     roundDurationSeconds: 90,
-    roundEndDisplaySeconds: 3,
+    roundEndDisplaySeconds: 5, // 5s review buffer on round end so stats can be read
     clutchSaveBonusPoints: 10,
     clutchSaveChargeHits: 1,
     clutchSaveSlowMotionSeconds: 0.3,
@@ -68,8 +69,10 @@ export const CONFIG = {
     },
     speedIncreaseEveryBricks: 10,
     speedIncreaseMultiplier: 1.05,
-    basePaddleWidth: 120,     // Default paddle width
-    paddleHeight: 14,
+    basePaddleWidth: 200,     // Default paddle width for laptop / landscape
+    basePaddleWidthMobile: 150, // Default paddle width for mobile portrait
+    paddleHeight: 20,         // Default paddle height for laptop / landscape
+    paddleHeightMobile: 18,   // Default paddle height for mobile portrait
     ballRadius: 9,
     ballSpeedX: 230,
     ballSpeedY: -300,
@@ -78,6 +81,7 @@ export const CONFIG = {
   // Tracking & Performance
   tracking: {
     inferenceThrottleMs: 70,  // Interval between ML frames (~14 FPS) to save battery
-    droppedFramesDebounce: 4, // Consecutive misses before warning "No person detected"
+    droppedFramesDebounce: 8, // Consecutive misses before warning (tolerates jump camera shake)
+    leanSensitivity: 0.36,    // Lateral body lean sensitivity (±0.18 from center reaches full edges)
   },
 };

@@ -5,6 +5,7 @@ import {
   setAutoSaveEnabled,
 } from "./recording-storage.js?v=1";
 import { createZipBlob } from "./zip.js?v=1";
+import { downloadBlob } from "./download.js?v=1";
 
 const list = document.querySelector("#recordings-list");
 const status = document.querySelector("#recordings-status");
@@ -12,17 +13,6 @@ const downloadAllButton = document.querySelector("#download-all");
 const autoSaveToggle = document.querySelector("#auto-save-toggle");
 let recordings = [];
 let previewUrls = [];
-
-function downloadBlob(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
-}
 
 function formatBytes(bytes) {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
